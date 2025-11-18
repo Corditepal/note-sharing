@@ -5,11 +5,13 @@ Login_api_V2 已经实现用户信息管理和笔记管理
 
 2、下载minio，将用户名和密码分别设为：name  和   password
 并创建名为notesharing的bucket
+minio配置教程：https://blog.csdn.net/weixin_55049722/article/details/143193778
 
 3、创建数据库
 CREATE DATABASE ebook_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'ebook_admin'@'localhost' IDENTIFIED BY 'ebook_123456';
 GRANT ALL PRIVILEGES ON ebook_platform.* TO 'ebook_admin'@'localhost';
+使用命令`.\minio.exe server "your\minio\address\bin" --console-address "127.0.0.1:9005" --address "127.0.0.1:9000"`
 
 4、使用IDEA，gradle自动配置
 
