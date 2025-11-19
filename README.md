@@ -1,6 +1,18 @@
 # note-sharing
-Login_api_V2 已经实现用户信息管理和笔记管理
+Login_api 已经实现用户信息管理和笔记管理
+1）用户信息管理：
+JPA（user 表 和 verification_token 表）数据库管理
+用户密码使用JWT进行加密验证和存储
 
+2）笔记管理：
+使用  http请求 --> request --> dto --> do --> vo --> response数据链
+mapstruct实现: request --> dto    do --> vo
+controller接受request，向service传递dto，返回response
+service: dto --> do  返回vo
+使用mybatis执行数据库操作
+
+
+项目后端执行方式
 1、打开mysql
 
 2、下载minio，将用户名和密码分别设为：name  和   password
