@@ -35,4 +35,12 @@ public interface UserMapper {
             "    updated_at = CURRENT_TIMESTAMP " +
             "WHERE id = #{id}")
     void updateUser(UserEntity user);
+
+    @Select("SELECT id, username, password_hash AS passwordHash, enabled, studentNumber, email, " +
+            "created_at AS createdAt, updated_at AS updatedAt " +
+            "FROM users WHERE studentNumber = #{studentNumber}")
+    UserEntity selectByStudentNumber(@Param("studentNumber") String studentNumber);
+
+    @Delete("DELETE FROM users WHERE id = #{id}")
+    void deleteUserById(@Param("id") Long id);
 }

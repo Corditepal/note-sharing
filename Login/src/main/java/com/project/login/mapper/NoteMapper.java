@@ -1,6 +1,7 @@
 package com.project.login.mapper;
 
 import com.project.login.model.dataobject.NoteDO;
+import com.project.login.model.response.admin.NoteAdminSummary;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -60,4 +61,30 @@ public interface NoteMapper {
             "FROM notes WHERE notebook_id = #{notebookId} ORDER BY updated_at DESC")
     @ResultMap("NoteBaseResultMap")
     List<NoteDO> selectVOListByNotebookId(Long notebookId);
+
+    @Select({
+            "<script>",
+            "SELECT n.id AS id,",
+            "       u.username AS author,",
+            "       s.name AS space,",
+            "       nb.name AS notebook,",
+            "       t.name AS tag,",
+            "       n.title AS preview",
+            "FROM notes n",
+            "JOIN notebooks nb ON nb.id = n.notebook_id",
+            "JOIN note_spaces s ON s.id = nb.space_id",
+            "JOIN users u ON u.id = s.user_id",
+            "JOIN tags t ON t.id = nb.tag_id",
+            "<where>",
+            "  <if test='author != null and author != \"\"'>",
+            "    AND LOWER(u.username) LIKE CONCAT('%', LOWER(#{author}), '%')",
+            "  </if>",
+            "  <if test='tag != null and tag != \"\"'>",
+            "    AND LOWER(t.name) LIKE CONCAT('%', LOWER(#{tag}), '%')",
+            "  </if>",
+            "</where>",
+            "ORDER BY n.created_at DESC",
+            "</script>"
+    })
+    List<NoteAdminSummary> selectAdminSummaries(@Param("author") String author, @Param("tag") String tag);
 }
