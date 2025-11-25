@@ -1,0 +1,78 @@
+:root {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: #101828;
+  background-color: #f5f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* 全局设计变量 */
+  --brand-primary: #22bfa3;
+  --brand-secondary: #2f7dff;
+  --surface-base: #ffffff;
+  --surface-muted: #f5f7fb;
+  --surface-soft: #eef2fb;
+  --line-soft: #e1e7f0;
+  --text-strong: #101828;
+  --text-secondary: #4b5565;
+  --text-muted: #98a2b3;
+  --feedback-success: #1fb179;
+  --feedback-danger: #e54848;
+  --feedback-warning: #f4a738;
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 24px 60px rgba(15, 23, 42, 0.12);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--brand-secondary);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+a:hover {
+  color: var(--brand-primary);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0;
+}
+
+p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+#app {
+  min-height: 100vh;
+}

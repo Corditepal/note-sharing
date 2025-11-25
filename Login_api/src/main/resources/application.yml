@@ -1,0 +1,90 @@
+spring:
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  mvc:
+    async:
+      request-timeout: 600000
+    contentnegotiation:
+      favor-parameter: true
+
+  application:
+    name: booklore-api
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/ebook_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ebook_admin
+    password: ebook_123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 500
+          order_inserts: true
+
+  mail:
+    host: smtp.163.com
+    port: 465
+    username: 13215675728@163.com
+    password: SYf6TTheqrBEX9QW
+    protocol: smtps
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.ssl.enable: true
+      mail.smtp.starttls.enable: false
+      mail.smtp.starttls.required: false
+
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: admin
+    password: admin
+    listener:
+      simple:
+        acknowledge-mode: manual
+
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/note_db
+
+jwt:
+  secret: Fs9K2nKqP9zqD82jsk29Ahd92nDkQ8snf7P2jS8KfD8=
+  expiration: 3600
+
+flyway:
+  enabled: true
+  locations: classpath:db/migration
+  baseline-on-migrate: true
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: name           # 如果你真的配置了 name/password 就保持
+  secret-key: password
+  bucket: notesharing
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    default-statement-timeout: 600
+  type-aliases-package: com.project.login.model
+
+elasticsearch:
+  host: localhost
+  port: 9200
+  scheme: http
