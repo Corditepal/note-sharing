@@ -11,8 +11,8 @@ public class ScheduledTasks {
     private final NoteStatsService noteStatsService;
     private final CompensationService compensationService;
 
-    // 每5分钟 flush Redis -> MQ
-    @Scheduled(cron = "0 */5 * * * *")
+    // 每5分钟批量 flush Redis -> MQ（可根据负载调节）
+    @Scheduled(cron = "0 */30 * * * *")
     public void flushRedisToMQ() {
         noteStatsService.flushToMQ();
     }
