@@ -132,7 +132,7 @@ public class NoteController {
     }
 
     @Operation(summary = "Get file access URL by noteId")
-    @PostMapping("/files/url")
+    @PostMapping("/files/id_url")
     public StandardResponse<String> getFileUrlByNoteId(@Valid @RequestParam("noteId") Long noteId) {
         String fileUrl = noteService.getFileUrlByNoteId(noteId);
         return StandardResponse.success(fileUrl);
