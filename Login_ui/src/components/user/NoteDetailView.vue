@@ -103,14 +103,216 @@
           </div>
         </div>
 
-        <!-- 尾部：评论部分（预留展示栏） -->
+        <!-- 尾部：评论部分 -->
         <div class="comments-section">
           <div class="comments-header">
             <h2 class="comments-title">评论</h2>
-            <span class="comments-count">({{ stats.comments || 0 }})</span>
+            <span class="comments-count">({{ comments.length || 0 }})</span>
           </div>
-          <div class="comments-placeholder">
-            <p class="placeholder-text">评论功能即将上线，敬请期待...</p>
+
+          <!-- 发表评论表单 -->
+          <div v-if="userStore.isLoggedIn" class="comment-form">
+            <div class="comment-form-header">
+              <span class="comment-form-label">发表评论</span>
+            </div>
+            <textarea
+              v-model="newCommentContent"
+              class="comment-input"
+              placeholder="写下你的评论..."
+              rows="4"
+              :disabled="commentSubmitting"
+            ></textarea>
+            <div class="comment-form-actions">
+              <button
+                class="comment-submit-btn"
+                :disabled="!newCommentContent.trim() || commentSubmitting"
+                @click="handleSubmitComment"
+              >
+                {{ commentSubmitting ? '提交中...' : '发表评论' }}
+              </button>
+            </div>
+          </div>
+          <div v-else class="comment-login-tip">
+            <p>请先登录后再发表评论</p>
+          </div>
+
+          <!-- 评论列表 -->
+          <div v-if="commentsLoading" class="comments-loading">
+            <div class="loader"></div>
+            <p>加载评论中...</p>
+          </div>
+          <div v-else-if="comments.length === 0" class="comments-empty">
+            <p>暂无评论，快来发表第一条评论吧~</p>
+          </div>
+          <div v-else class="comments-list">
+            <div
+              v-for="comment in comments"
+              :key="comment._id"
+              class="comment-item"
+            >
+              <div class="comment-main">
+                <div class="comment-header">
+                  <div class="comment-author-info">
+                    <img 
+                      :src="'/assets/avatars/avatar.png'" 
+                      :alt="comment.username"
+                      class="comment-avatar"
+                    />
+                    <span class="comment-author">{{ comment.username || '匿名用户' }}</span>
+                  </div>
+                  <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
+                </div>
+                <div class="comment-content-wrapper">
+                  <p class="comment-content">
+                    <span v-if="comment.replyToUsername" class="reply-to">
+                      回复 @{{ comment.replyToUsername }}：
+                    </span>
+                    <span>{{ comment.content }}</span>
+                  </p>
+                </div>
+                <div class="comment-actions">
+                  <button
+                    class="comment-action-btn"
+                    :class="{ active: comment.LikedOrNot }"
+                    :disabled="commentActionLoading[comment._id]"
+                    @click="handleToggleLike(comment)"
+                  >
+                    <svg class="action-icon-small" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="m8 2.748-.717-.737C5.6.281 2.514.878 1.4 3.053c-.523 1.023-.641 2.5.314 4.385C2.972 9.59 5.614 12.368 8 14.25c2.386-1.882 5.028-4.659 6.286-6.813.955-1.886.838-3.362.314-4.385C13.486.878 10.4.28 8.717 2.01z"/>
+                    </svg>
+                    <span>{{ comment.likeCount || 0 }}</span>
+                  </button>
+                  <button
+                    v-if="userStore.isLoggedIn"
+                    class="comment-action-btn"
+                    @click="handleReply(comment)"
+                  >
+                    回复
+                  </button>
+                  <button
+                    v-if="userStore.isLoggedIn"
+                    class="comment-action-btn danger"
+                    :disabled="commentActionLoading[comment._id]"
+                    @click="handleDeleteComment(comment)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+
+              <!-- 回复表单 -->
+              <div v-if="replyingTo === comment._id" class="reply-form">
+                <textarea
+                  v-model="replyContent"
+                  class="comment-input reply-input"
+                  :placeholder="`回复 @${comment.username}:`"
+                  rows="3"
+                  :disabled="commentSubmitting"
+                ></textarea>
+                <div class="reply-form-actions">
+                  <button
+                    class="comment-submit-btn small"
+                    :disabled="!replyContent.trim() || commentSubmitting"
+                    @click="handleSubmitReply(comment)"
+                  >
+                    {{ commentSubmitting ? '提交中...' : '回复' }}
+                  </button>
+                  <button
+                    class="comment-cancel-btn"
+                    @click="cancelReply"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+
+              <!-- 子评论（回复） -->
+              <div v-if="comment.replies && comment.replies.length > 0" class="comment-replies">
+                <div
+                  v-for="reply in comment.replies"
+                  :key="reply._id"
+                  class="comment-item reply-item"
+                >
+                  <div class="comment-main">
+                    <div class="comment-header">
+                      <div class="comment-author-info">
+                        <img 
+                          :src="'/assets/avatars/avatar.png'" 
+                          :alt="reply.username"
+                          class="comment-avatar"
+                        />
+                        <span class="comment-author">{{ reply.username || '匿名用户' }}</span>
+                      </div>
+                      <div class="comment-header-right">
+                        <span class="comment-time">{{ formatTime(reply.createdAt) }}</span>
+                      </div>
+                    </div>
+                    <div class="comment-content-wrapper">
+                      <p class="comment-content">
+                        <span v-if="reply.replyToUsername" class="reply-to">
+                          回复 @{{ reply.replyToUsername }}：
+                        </span>
+                        <span>{{ reply.content }}</span>
+                      </p>
+                    </div>
+                    <div class="comment-actions">
+                      <button
+                        class="comment-action-btn"
+                        :class="{ active: reply.LikedOrNot }"
+                        :disabled="commentActionLoading[reply._id]"
+                        @click="handleToggleLike(reply)"
+                      >
+                        <svg class="action-icon-small" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="m8 2.748-.717-.737C5.6.281 2.514.878 1.4 3.053c-.523 1.023-.641 2.5.314 4.385C2.972 9.59 5.614 12.368 8 14.25c2.386-1.882 5.028-4.659 6.286-6.813.955-1.886.838-3.362.314-4.385C13.486.878 10.4.28 8.717 2.01z"/>
+                        </svg>
+                        <span>{{ reply.likeCount || 0 }}</span>
+                      </button>
+                      <button
+                        v-if="userStore.isLoggedIn"
+                        class="comment-action-btn"
+                        @click="handleReplyToReply(comment, reply)"
+                      >
+                        回复
+                      </button>
+                      <button
+                        v-if="userStore.isLoggedIn"
+                        class="comment-action-btn danger"
+                        :disabled="commentActionLoading[reply._id]"
+                        @click="handleDeleteComment(reply)"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 回复回复的表单 -->
+                  <div v-if="replyingTo === reply._id" class="reply-form">
+                    <textarea
+                      v-model="replyContent"
+                      class="comment-input reply-input"
+                      :placeholder="`回复 @${reply.username}:`"
+                      rows="3"
+                      :disabled="commentSubmitting"
+                    ></textarea>
+                    <div class="reply-form-actions">
+                      <button
+                        class="comment-submit-btn small"
+                        :disabled="!replyContent.trim() || commentSubmitting"
+                        @click="handleSubmitReply(comment, reply)"
+                      >
+                        {{ commentSubmitting ? '提交中...' : '回复' }}
+                      </button>
+                      <button
+                        class="comment-cancel-btn"
+                        @click="cancelReply"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -154,6 +356,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getFileUrlByNoteId, getNoteStats, changeNoteStat } from '@/api/note'
+import { getRemarksByNote, insertRemark, deleteRemark, likeRemark, cancelLikeRemark } from '@/api/remark'
 import { useUserStore } from '@/stores/user'
 import { formatTime } from '@/utils/time'
 import VuePdfEmbed from 'vue-pdf-embed'
@@ -206,6 +409,18 @@ const actionLoading = ref({
 })
 const fileUrl = ref(null)
 const markdownContent = ref('')
+
+// 评论相关状态
+const comments = ref([])
+const commentsLoading = ref(false)
+const newCommentContent = ref('')
+const commentSubmitting = ref(false)
+const replyingTo = ref(null)
+const replyContent = ref('')
+const replyToParentId = ref(null) // 回复的父评论ID
+const replyToRemarkId = ref(null) // 回复的目标评论ID
+const replyToUsername = ref(null) // 回复的目标用户名
+const commentActionLoading = ref({})
 
 // 配置markdown-it解析器
 const mdParser = new MarkdownIt({
@@ -377,6 +592,9 @@ const fetchNoteDetail = async () => {
     }
     restoreActionState()
 
+    // 加载评论列表
+    await fetchComments()
+
     // 如果是Markdown文件，获取内容并转换为HTML
     if (noteDetail.value.fileType === 'md') {
       contentLoading.value = true
@@ -465,6 +683,217 @@ watch(() => props.initialTitle, (newTitle) => {
     noteDetail.value.title = newTitle
   }
 }, { immediate: true })
+
+// 监听noteId变化，重新加载评论
+watch(() => props.noteId, () => {
+  if (props.noteId) {
+    fetchComments()
+  }
+})
+
+// 获取评论列表
+const fetchComments = async () => {
+  if (!noteDetail.value?.noteId) return
+  
+  const noteId = noteDetail.value.noteId
+  const userId = getCurrentUserId()
+  
+  if (!userId) {
+    console.warn('用户未登录，无法获取评论')
+    return
+  }
+
+  commentsLoading.value = true
+  try {
+    const remarks = await getRemarksByNote(noteId, userId)
+    console.log('获取到的评论数据:', remarks)
+    // 调试：打印第一条评论的详细信息
+    if (remarks && remarks.length > 0) {
+      console.log('第一条评论详情:', JSON.stringify(remarks[0], null, 2))
+    }
+    comments.value = remarks || []
+  } catch (err) {
+    console.error('获取评论列表失败:', err)
+    comments.value = []
+  } finally {
+    commentsLoading.value = false
+  }
+}
+
+// 发表评论
+const handleSubmitComment = async () => {
+  if (!newCommentContent.value.trim() || !noteDetail.value?.noteId) return
+  
+  const userId = getCurrentUserId()
+  const username = userStore.userInfo?.username || '匿名用户'
+  
+  if (!userId) {
+    console.warn('用户未登录，无法发表评论')
+    return
+  }
+
+  commentSubmitting.value = true
+  try {
+    const remarkData = {
+      noteId: noteDetail.value.noteId,
+      userId: userId,
+      username: username,
+      content: newCommentContent.value.trim(),
+      parentId: null,
+      isReceive: false,
+      receiveToRemarkId: null,
+      replyToUsername: null
+    }
+    
+    await insertRemark(remarkData)
+    newCommentContent.value = ''
+    
+    // 重新获取评论列表
+    await fetchComments()
+    
+    // 更新评论数统计
+    if (stats.value) {
+      stats.value.comments = (stats.value.comments || 0) + 1
+    }
+  } catch (err) {
+    console.error('发表评论失败:', err)
+    alert('发表评论失败，请稍后重试')
+  } finally {
+    commentSubmitting.value = false
+  }
+}
+
+// 回复评论
+const handleReply = (comment) => {
+  replyingTo.value = comment._id
+  replyToParentId.value = comment.parentId || comment._id
+  replyToRemarkId.value = comment._id
+  replyToUsername.value = comment.username
+  replyContent.value = ''
+}
+
+// 回复子评论
+const handleReplyToReply = (parentComment, reply) => {
+  replyingTo.value = reply._id
+  replyToParentId.value = parentComment._id
+  replyToRemarkId.value = reply._id
+  replyToUsername.value = reply.username
+  replyContent.value = ''
+}
+
+// 提交回复
+const handleSubmitReply = async (parentComment, targetReply = null) => {
+  if (!replyContent.value.trim() || !noteDetail.value?.noteId) return
+  
+  const userId = getCurrentUserId()
+  const username = userStore.userInfo?.username || '匿名用户'
+  
+  if (!userId) {
+    console.warn('用户未登录，无法回复')
+    return
+  }
+
+  commentSubmitting.value = true
+  try {
+    const remarkData = {
+      noteId: noteDetail.value.noteId,
+      userId: userId,
+      username: username,
+      content: replyContent.value.trim(),
+      parentId: replyToParentId.value || parentComment._id,
+      isReceive: true,
+      receiveToRemarkId: replyToRemarkId.value || parentComment._id,
+      replyToUsername: replyToUsername.value || parentComment.username
+    }
+    
+    await insertRemark(remarkData)
+    cancelReply()
+    
+    // 重新获取评论列表
+    await fetchComments()
+    
+    // 更新评论数统计
+    if (stats.value) {
+      stats.value.comments = (stats.value.comments || 0) + 1
+    }
+  } catch (err) {
+    console.error('回复评论失败:', err)
+    alert('回复失败，请稍后重试')
+  } finally {
+    commentSubmitting.value = false
+  }
+}
+
+// 取消回复
+const cancelReply = () => {
+  replyingTo.value = null
+  replyToParentId.value = null
+  replyToRemarkId.value = null
+  replyToUsername.value = null
+  replyContent.value = ''
+}
+
+// 点赞/取消点赞
+const handleToggleLike = async (comment) => {
+  const userId = getCurrentUserId()
+  if (!userId) {
+    console.warn('用户未登录，无法点赞')
+    return
+  }
+
+  if (commentActionLoading.value[comment._id]) return
+
+  commentActionLoading.value[comment._id] = true
+  try {
+    if (comment.LikedOrNot) {
+      // 取消点赞
+      await cancelLikeRemark(comment._id, userId)
+      comment.LikedOrNot = false
+      comment.likeCount = Math.max(0, (comment.likeCount || 0) - 1)
+    } else {
+      // 点赞
+      await likeRemark(comment._id, userId)
+      comment.LikedOrNot = true
+      comment.likeCount = (comment.likeCount || 0) + 1
+    }
+  } catch (err) {
+    console.error('点赞操作失败:', err)
+    alert('操作失败，请稍后重试')
+  } finally {
+    commentActionLoading.value[comment._id] = false
+  }
+}
+
+// 删除评论
+const handleDeleteComment = async (comment) => {
+  if (!confirm('确定要删除这条评论吗？')) return
+
+  const userId = getCurrentUserId()
+  if (!userId) {
+    console.warn('用户未登录，无法删除评论')
+    return
+  }
+
+  if (commentActionLoading.value[comment._id]) return
+
+  commentActionLoading.value[comment._id] = true
+  try {
+    await deleteRemark(comment._id)
+    
+    // 重新获取评论列表
+    await fetchComments()
+    
+    // 更新评论数统计
+    if (stats.value) {
+      stats.value.comments = Math.max(0, (stats.value.comments || 0) - 1)
+    }
+  } catch (err) {
+    console.error('删除评论失败:', err)
+    alert('删除失败，请稍后重试')
+  } finally {
+    commentActionLoading.value[comment._id] = false
+  }
+}
 
 onMounted(() => {
   if (props.noteId) {
@@ -777,7 +1206,119 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
-.comments-placeholder {
+/* 评论表单 */
+.comment-form {
+  margin-bottom: 32px;
+  padding: 20px;
+  background: var(--surface-muted);
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+}
+
+.comment-form-header {
+  margin-bottom: 12px;
+}
+
+.comment-form-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.comment-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  background: var(--surface-base);
+  color: var(--text-strong);
+  transition: border-color 0.2s;
+}
+
+.comment-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+.comment-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.comment-form-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.comment-submit-btn {
+  padding: 8px 20px;
+  background: var(--brand-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.comment-submit-btn:hover:not(:disabled) {
+  background: #006EDC;
+}
+
+.comment-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.comment-submit-btn.small {
+  padding: 6px 16px;
+  font-size: 13px;
+}
+
+.comment-cancel-btn {
+  padding: 6px 16px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.comment-cancel-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-strong);
+}
+
+.comment-login-tip {
+  padding: 20px;
+  text-align: center;
+  background: var(--surface-muted);
+  border-radius: 8px;
+  border: 1px dashed var(--line-soft);
+  margin-bottom: 32px;
+}
+
+.comment-login-tip p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* 评论列表 */
+.comments-loading {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.comments-empty {
   padding: 60px 20px;
   text-align: center;
   background: var(--surface-muted);
@@ -785,10 +1326,196 @@ onMounted(() => {
   border: 1px dashed var(--line-soft);
 }
 
-.placeholder-text {
+.comments-empty p {
   margin: 0;
   color: var(--text-muted);
   font-size: 15px;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.comment-item {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.comment-item:last-child {
+  border-bottom: none;
+}
+
+.comment-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.comment-author-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--line-soft);
+  flex-shrink: 0;
+  background: var(--surface-muted);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.comment-avatar:hover {
+  border-color: var(--brand-primary);
+  transform: scale(1.05);
+}
+
+.comment-author {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.comment-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.comment-time {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.reply-to-inline {
+  font-size: 13px;
+  color: var(--brand-primary);
+}
+
+.comment-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reply-to {
+  font-size: 15px;
+  color: var(--brand-primary);
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.comment-content {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  word-wrap: break-word;
+  display: inline;
+}
+
+.comment-content span {
+  display: inline;
+}
+
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.comment-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.comment-action-btn:hover:not(:disabled) {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+}
+
+.comment-action-btn.active {
+  color: var(--brand-primary);
+}
+
+.comment-action-btn.danger {
+  color: var(--feedback-danger);
+}
+
+.comment-action-btn.danger:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.comment-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-icon-small {
+  width: 14px;
+  height: 14px;
+}
+
+/* 回复表单 */
+.reply-form {
+  margin-top: 12px;
+  margin-left: 24px;
+  padding: 16px;
+  background: var(--surface-muted);
+  border-radius: 6px;
+  border-left: 3px solid var(--brand-primary);
+}
+
+.reply-input {
+  margin-bottom: 8px;
+}
+
+.reply-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 子评论 */
+.comment-replies {
+  margin-top: 16px;
+  margin-left: 24px;
+  padding-left: 20px;
+  border-left: 2px solid var(--line-soft);
+}
+
+.reply-item {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.reply-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .action-sidebar {
@@ -955,6 +1682,22 @@ onMounted(() => {
 
   .stat-item {
     font-size: 13px;
+  }
+
+  .comment-avatar {
+    width: 32px;
+    height: 32px;
+  }
+
+  .comment-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .comment-header-right {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

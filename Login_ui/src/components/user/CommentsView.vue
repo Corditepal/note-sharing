@@ -32,26 +32,39 @@
           </div>
           <button class="ghost-btn" type="button">导出</button>
         </header>
-        <ul>
-          <li v-for="comment in receivedComments" :key="comment.id" class="comment-card">
-            <div class="comment-bullet" :data-status="comment.status"></div>
+        <div v-if="loading" class="comments-loading">
+          <div class="loader"></div>
+          <p>加载中...</p>
+        </div>
+        <ul v-else-if="receivedComments.length > 0">
+          <li v-for="comment in receivedComments" :key="comment._id" class="comment-card">
+            <div class="comment-bullet" :data-status="comment.status || '已读'"></div>
             <div class="comment-body">
               <div class="comment-head">
-                <strong>{{ comment.noteTitle }}</strong>
-                <span>{{ comment.createdAt }}</span>
+                <strong>{{ comment.noteTitle || '笔记 #' + comment.noteId }}</strong>
+                <span>{{ formatTime(comment.createdAt) }}</span>
+              </div>
+              <div class="comment-author-section">
+                <img 
+                  :src="'/assets/avatars/avatar.png'" 
+                  :alt="comment.username"
+                  class="comment-avatar"
+                />
+                <span class="comment-author-name">{{ comment.username || '匿名用户' }}</span>
               </div>
               <p class="comment-content">{{ comment.content }}</p>
               <div class="comment-meta">
-                <span>来自：{{ comment.from }}</span>
-                <span>状态：{{ comment.status }}</span>
+                <span v-if="comment.likeCount !== undefined">点赞：{{ comment.likeCount }}</span>
               </div>
               <div class="comment-actions">
-                <button type="button" class="text-link">回复</button>
-                <button type="button" class="text-link danger" @click="handleDelete('received', comment.id)">删除</button>
+                <button type="button" class="text-link danger" @click="handleDelete('received', comment._id)">删除</button>
               </div>
             </div>
           </li>
         </ul>
+        <div v-else class="comments-empty">
+          <p>暂无收到的评论</p>
+        </div>
       </section>
 
       <section class="comment-panel">
@@ -62,95 +75,128 @@
           </div>
           <button class="ghost-btn" type="button">批量删除</button>
         </header>
-        <ul>
-          <li v-for="comment in sentComments" :key="comment.id" class="comment-card">
+        <div v-if="loading" class="comments-loading">
+          <div class="loader"></div>
+          <p>加载中...</p>
+        </div>
+        <ul v-else-if="sentComments.length > 0">
+          <li v-for="comment in sentComments" :key="comment._id" class="comment-card">
             <div class="comment-bullet" data-status="sent"></div>
             <div class="comment-body">
               <div class="comment-head">
-                <strong>目标笔记：{{ comment.noteTitle }}</strong>
-                <span>{{ comment.createdAt }}</span>
+                <strong>目标笔记：{{ comment.noteTitle || '笔记 #' + comment.noteId }}</strong>
+                <span>{{ formatTime(comment.createdAt) }}</span>
               </div>
-              <p class="comment-content">{{ comment.content }}</p>
+              <div class="comment-author-section">
+                <img 
+                  :src="'/assets/avatars/avatar.png'" 
+                  :alt="comment.username"
+                  class="comment-avatar"
+                />
+                <span class="comment-author-name">{{ comment.username || '匿名用户' }}</span>
+              </div>
+              <p class="comment-content">
+                <span v-if="comment.replyToUsername" class="reply-to">
+                  回复 @{{ comment.replyToUsername }}：
+                </span>
+                <span>{{ comment.content }}</span>
+              </p>
               <div class="comment-meta">
-                <span>对象：{{ comment.targetOwner }}</span>
-                <span>所在空间：{{ comment.space }}</span>
+                <span v-if="comment.likeCount !== undefined">点赞：{{ comment.likeCount }}</span>
+                <span v-if="comment.isReceive">类型：回复</span>
               </div>
               <div class="comment-actions">
-                <button type="button" class="text-link danger" @click="handleDelete('sent', comment.id)">删除评论</button>
+                <button type="button" class="text-link danger" @click="handleDelete('sent', comment._id)">删除评论</button>
               </div>
             </div>
           </li>
         </ul>
+        <div v-else class="comments-empty">
+          <p>暂无发送的评论</p>
+        </div>
       </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { deleteRemark } from '@/api/remark'
+import { useUserStore } from '@/stores/user'
+import { formatTime } from '@/utils/time'
+
+const userStore = useUserStore()
 
 /**
- * API 占位信息（仅限展示）
- * - GET /api/comments/received
- *   输入: 无
- *   输出: { code: number, data: Comment[] }
- *   返回码: 200 成功 / 401 未登录
- * - GET /api/comments/sent
- *   输入: 无
- *   输出: { code: number, data: Comment[] }
- *   返回码: 200 成功 / 401 未登录
- * - DELETE /api/comments/{id}
- *   输入: 无
- *   输出: { code: number, message: string }
- *   返回码: 200 删除成功 / 404 评论不存在
+ * 注意：后端目前没有直接获取用户评论列表的接口
+ * 需要后端提供以下接口：
+ * - GET /api/v1/remark/user/received - 获取我的笔记收到的评论
+ * - GET /api/v1/remark/user/sent - 获取我发送的评论
+ * 
+ * 当前实现：使用模拟数据展示，删除功能已实现
  */
 
-const receivedComments = ref([
-  {
-    id: 'rc-1',
-    noteTitle: 'Vue3 组件通信',
-    content: '这段关于 provide/inject 的示例很有帮助，期待更多案例。',
-    from: '林梓萱',
-    status: '未读',
-    createdAt: '2025-11-18 21:36'
-  },
-  {
-    id: 'rc-2',
-    noteTitle: '数据分析模板',
-    content: '能分享下原始数据表结构吗？我想复用这套模板。',
-    from: '张晨',
-    status: '已读',
-    createdAt: '2025-11-17 14:52'
-  }
-])
+const receivedComments = ref([])
+const sentComments = ref([])
+const loading = ref(false)
 
-const sentComments = ref([
-  {
-    id: 'sc-1',
-    noteTitle: 'OKR 复盘指引',
-    content: '非常系统的拆解，已收藏～',
-    targetOwner: '项目运营组',
-    space: '组织管理',
-    createdAt: '2025-11-15 09:25'
-  },
-  {
-    id: 'sc-2',
-    noteTitle: 'React 性能调优',
-    content: '建议补充下关于 memo 的使用经验，会更完整。',
-    targetOwner: '余洋',
-    space: '前端技术',
-    createdAt: '2025-11-11 16:40'
-  }
-])
-
-const handleDelete = (type, id) => {
-  // TODO: 调用 DELETE /api/comments/{id} 删除评论
-  if (type === 'received') {
-    receivedComments.value = receivedComments.value.filter((item) => item.id !== id)
-  } else {
-    sentComments.value = sentComments.value.filter((item) => item.id !== id)
+// 获取当前用户ID
+const getCurrentUserId = () => {
+  const storeId = userStore.userInfo?.id
+  if (storeId) return storeId
+  try {
+    return JSON.parse(localStorage.getItem('userInfo') || '{}')?.id || null
+  } catch (err) {
+    return null
   }
 }
+
+// 加载评论数据（模拟数据，实际需要后端接口）
+const loadComments = async () => {
+  loading.value = true
+  try {
+    // TODO: 调用后端接口获取评论列表
+    // const userId = getCurrentUserId()
+    // if (!userId) return
+    
+    // 模拟数据 - 实际应该从后端获取
+    // const received = await getReceivedComments(userId)
+    // const sent = await getSentComments(userId)
+    
+    // 暂时使用空数组，等待后端接口
+    receivedComments.value = []
+    sentComments.value = []
+  } catch (err) {
+    console.error('加载评论失败:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 删除评论
+const handleDelete = async (type, commentId) => {
+  if (!confirm('确定要删除这条评论吗？')) return
+
+  try {
+    await deleteRemark(commentId)
+    
+    // 从列表中移除
+    if (type === 'received') {
+      receivedComments.value = receivedComments.value.filter((item) => item._id !== commentId)
+    } else {
+      sentComments.value = sentComments.value.filter((item) => item._id !== commentId)
+    }
+    
+    alert('删除成功')
+  } catch (err) {
+    console.error('删除评论失败:', err)
+    alert('删除失败，请稍后重试')
+  }
+}
+
+onMounted(() => {
+  loadComments()
+})
 </script>
 
 <style scoped>
@@ -306,10 +352,51 @@ const handleDelete = (type, id) => {
   color: var(--text-muted);
 }
 
+.comment-author-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--line-soft);
+  flex-shrink: 0;
+  background: var(--surface-muted);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.comment-avatar:hover {
+  border-color: var(--brand-primary);
+  transform: scale(1.05);
+}
+
+.comment-author-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-strong);
+}
+
 .comment-content {
   font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.7;
+  display: inline;
+}
+
+.comment-content span {
+  display: inline;
+}
+
+.reply-to {
+  font-size: 15px;
+  color: var(--brand-primary);
+  font-weight: 600;
+  margin-right: 2px;
 }
 
 .comment-meta {
@@ -354,6 +441,34 @@ const handleDelete = (type, id) => {
   color: var(--brand-primary);
 }
 
+.comments-loading {
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.loader {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 4px solid var(--line-soft);
+  border-top-color: var(--brand-primary);
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.comments-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
 @media (max-width: 640px) {
   .comments-hero,
   .comment-panel {
@@ -364,6 +479,15 @@ const handleDelete = (type, id) => {
   .comment-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .comment-avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .comment-author-name {
+    font-size: 13px;
   }
 }
 </style>
