@@ -54,5 +54,11 @@ export const searchQuestions = (keyword, userId) =>
     params: { keyword, userId }
   }).then(res => res.data.data)
 
+// 推荐问答
+export const getRecommendedQAs = (userId, topN = 10) =>
+  service.get('/recommend/QAs', {
+    params: { userId, topN }
+  }).then(res => res.data.data)
+
 
 

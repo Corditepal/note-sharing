@@ -8,7 +8,7 @@ import org.apache.ibatis.annotations.*;
 public interface UserMapper {
 
     @Select("SELECT id, username, password_hash AS passwordHash, enabled, studentNumber, email, " +
-            "created_at AS createdAt, updated_at AS updatedAt " +
+            "created_at AS createdAt, updated_at AS updatedAt, avatar_url AS avatarUrl " +
             "FROM users WHERE id = #{id}")
     UserDO selectById(@Param("id") Long id);
 
@@ -17,12 +17,12 @@ public interface UserMapper {
     String selectNameById(Long id);
 
     @Select("SELECT id, username, password_hash AS passwordHash, enabled, studentNumber, email, " +
-            "created_at AS createdAt, updated_at AS updatedAt " +
+            "created_at AS createdAt, updated_at AS updatedAt, avatar_url AS avatarUrl " +
             "FROM users WHERE email = #{email}")
     UserEntity selectByEmail(@Param("email") String email);
 
     @Select("SELECT id, username, password_hash AS passwordHash, enabled, studentNumber, email, " +
-            "created_at AS createdAt, updated_at AS updatedAt " +
+            "created_at AS createdAt, updated_at AS updatedAt, avatar_url AS avatarUrl " +
             "FROM users WHERE username = #{username}")
     UserEntity selectByUsername(@Param("username") String username);
 
@@ -37,7 +37,14 @@ public interface UserMapper {
             "    enabled = #{enabled}, " +
             "    studentNumber = #{studentNumber}, " +
             "    email = #{email}, " +
+            "    avatar_url = #{avatarUrl}, " +
             "    updated_at = CURRENT_TIMESTAMP " +
             "WHERE id = #{id}")
     void updateUser(UserEntity user);
+
+    @Update("UPDATE users " +
+            "SET avatar_url = #{avatarUrl}, " +
+            "    updated_at = CURRENT_TIMESTAMP " +
+            "WHERE id = #{userId}")
+    void updateAvatarUrl(@Param("userId") Long userId, @Param("avatarUrl") String avatarUrl);
 }

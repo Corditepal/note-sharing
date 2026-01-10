@@ -143,6 +143,21 @@ export const moveNote = (noteId, targetNotebookId) => {
         .then(res => res.data.data);
 };
 
+/**
+ * [对应后端: POST /noting/notes/publish]
+ * 发布笔记（带文件和元数据）(返回 NoteVO)
+ */
+export const publishNote = (meta, file) => {
+    const metaJson = formatMeta(meta);
+    const formData = createFormData(metaJson, file);
+
+    return service.post('/noting/notes/publish', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    }).then(res => res.data.data);
+};
+
 // =========================================================
 //                       文件/图片操作 API
 // =========================================================

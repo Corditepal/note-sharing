@@ -29,6 +29,7 @@ export const useUserStore = defineStore('user', {
             username: null,
             email: null,
             studentNumber: null, // 与后端字段名保持一致
+            avatarUrl: null, // 用户头像URL
             token: localStorage.getItem('token') || null, // 保存 Token
         },
         isAuthenticated: !!localStorage.getItem('token'), // 根据 token 判断是否登录
@@ -61,6 +62,7 @@ export const useUserStore = defineStore('user', {
                 this.userInfo.username = payload.sub || payload.username;
                 this.userInfo.email = payload.email;
                 this.userInfo.studentNumber = payload.studentNumber;
+                this.userInfo.avatarUrl = payload.avatarUrl || null;
 
                 this.isAuthenticated = true;
                 console.log('Pinia: Token 解析成功，用户数据已设置。');
@@ -80,6 +82,7 @@ export const useUserStore = defineStore('user', {
             this.userInfo.username = user.username;
             this.userInfo.email = user.email;
             this.userInfo.studentNumber = user.studentNumber;
+            this.userInfo.avatarUrl = user.avatarUrl || null;
             this.isAuthenticated = true;
 
             console.log('Pinia: 用户数据已设置:', user.username);
@@ -94,6 +97,7 @@ export const useUserStore = defineStore('user', {
                 username: null,
                 email: null,
                 studentNumber: null,
+                avatarUrl: null,
                 token: null
             };
             this.isAuthenticated = false;

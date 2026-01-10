@@ -101,6 +101,7 @@
           <div class="header-actions">
             <span class="save-status">☁️ 已保存</span>
             <button class="save-btn" @click="saveNoteContent">保存</button>
+            <button class="publish-btn" @click="handlePublishNote" :disabled="!currentNote">发布</button>
           </div>
         </header>
 
@@ -352,7 +353,8 @@ import {
   deleteNote,
   moveNote,
   uploadImage,
-  getFileUrl
+  getFileUrl,
+  publishNote
 } from '@/api/note'; // 确保路径正确
 
 // ----------------- Props & Emits -----------------
@@ -616,6 +618,81 @@ const saveNoteContent = async () => {
   } catch (error) {
     alert('保存笔记失败，请稍后重试。');
     console.error('Error saving note content:', error);
+  }
+};
+
+/**
+ * 发布笔记
+ */
+const handlePublishNote = async () => {
+  if (!currentNote.value) {
+    alert('请先选择一个笔记！');
+    return;
+  }
+
+  // 确认发布
+  if (!confirm('确定要发布这篇笔记吗？发布后笔记将对其他用户可见。')) {
+    return;
+  }
+
+  try {
+    isLoading.value = true;
+
+    // 根据笔记类型处理内容
+    let file = null;
+    let meta = {};
+
+    if (currentNoteType.value === 'md') {
+      // 富文本笔记：获取HTML内容并转换为Markdown
+      if (!editor.value) {
+        alert('编辑器未初始化，无法发布。');
+        return;
+      }
+
+      const htmlContent = editor.value.getHTML();
+      const markdownContent = turndownService.turndown(htmlContent);
+
+      // 构造 File 对象
+      const blob = new Blob([markdownContent], { type: 'text/markdown' });
+      const filename = `${currentTitle.value || currentNote.value.title}.md`;
+      file = new File([blob], filename, { type: 'text/markdown' });
+
+      // 构造 meta 对象（使用 NoteUpdateMeta 格式）
+      meta = {
+        id: currentNote.value.id,
+        title: currentTitle.value || currentNote.value.title,
+        notebookId: currentNote.value.notebookId,
+        fileType: 'md'
+      };
+    } else {
+      // PDF或其他文件类型：需要获取文件
+      alert('文件类型笔记的发布功能需要先上传文件，请使用更新功能。');
+      isLoading.value = false;
+      return;
+    }
+
+    // 调用发布API
+    const publishedVo = await publishNote(meta, file);
+
+    if (publishedVo) {
+      // 更新本地笔记信息
+      if (publishedVo.updatedAt) {
+        currentNote.value.updatedAt = publishedVo.updatedAt;
+      }
+      // 同步更新 noteList 中对应笔记的信息
+      const noteInList = noteList.value.find(n => n.id === publishedVo.id);
+      if (noteInList) {
+        Object.assign(noteInList, publishedVo);
+      }
+
+      alert('笔记发布成功！');
+    }
+
+  } catch (error) {
+    alert('发布笔记失败：' + (error.response?.data?.message || error.message || '请稍后重试。'));
+    console.error('Error publishing note:', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -1612,10 +1689,33 @@ const toggleInsertMenu = () => showInsertMenu.value = !showInsertMenu.value;
   cursor: pointer;
   font-size: 14px;
   transition: background-color 0.2s;
+  margin-left: 8px;
 }
 
 .save-btn:hover {
   background: #3a68e0;
+}
+
+.publish-btn {
+  padding: 8px 15px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  margin-left: 8px;
+}
+
+.publish-btn:hover:not(:disabled) {
+  background: #059669;
+}
+
+.publish-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* --- TipTap 工具栏 --- */

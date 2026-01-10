@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -22,7 +21,51 @@ public class MinioService {
 
     public String uploadFile(MultipartFile file) {
         try {
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            // 处理文件名：移除特殊字符，只保留文件名（不含路径）
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename == null || originalFilename.isEmpty()) {
+                originalFilename = "file";
+            } else {
+                // 只取文件名部分（去除路径）
+                int lastSlash = originalFilename.lastIndexOf('/');
+                int lastBackslash = originalFilename.lastIndexOf('\\');
+                int lastSeparator = Math.max(lastSlash, lastBackslash);
+                if (lastSeparator >= 0) {
+                    originalFilename = originalFilename.substring(lastSeparator + 1);
+                }
+                // 移除特殊字符，只保留字母、数字、点、下划线、连字符
+                originalFilename = originalFilename.replaceAll("[^a-zA-Z0-9._-]", "_");
+            }
+            
+            // 获取文件扩展名
+            String extension = "";
+            int lastDot = originalFilename.lastIndexOf('.');
+            if (lastDot > 0) {
+                extension = originalFilename.substring(lastDot);
+                originalFilename = originalFilename.substring(0, lastDot);
+            }
+            
+            // 生成安全的文件名
+            String fileName = UUID.randomUUID().toString() + "_" + originalFilename + extension;
+            
+            // 确保Content-Type正确
+            String contentType = file.getContentType();
+            if (contentType == null || contentType.isEmpty()) {
+                // 根据扩展名推断Content-Type
+                if (extension.equalsIgnoreCase(".jpg") || extension.equalsIgnoreCase(".jpeg")) {
+                    contentType = "image/jpeg";
+                } else if (extension.equalsIgnoreCase(".png")) {
+                    contentType = "image/png";
+                } else if (extension.equalsIgnoreCase(".gif")) {
+                    contentType = "image/gif";
+                } else if (extension.equalsIgnoreCase(".webp")) {
+                    contentType = "image/webp";
+                } else {
+                    contentType = "application/octet-stream";
+                }
+            }
+
+            log.info("Uploading file: {} with content type: {}", fileName, contentType);
 
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -30,28 +73,26 @@ public class MinioService {
                             .object(fileName)
                             .stream(
                                     file.getInputStream(),
-                                    -1,                      // size 不确定
+                                    file.getSize(),          // 使用实际文件大小
                                     10 * 1024 * 1024         // 分片大小 10MB（必填）
                             )
-                            .contentType(
-                                    Optional.ofNullable(file.getContentType())
-                                            .orElse("application/octet-stream")
-                            )
+                            .contentType(contentType)
                             .build()
             );
 
+            log.info("File uploaded successfully: {}", fileName);
             return fileName;
 
         } catch (Exception e) {
-            e.printStackTrace(); // 打印堆栈，方便调试
-            throw new RuntimeException("File upload failed", e);
+            log.error("File upload failed", e);
+            throw new RuntimeException("File upload failed: " + e.getMessage(), e);
         }
     }
 
     // 获取文件预览 URL（默认 7 天）
     public String getFileUrl(String fileName) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            String url = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(bucket)
@@ -59,8 +100,11 @@ public class MinioService {
                             .expiry(7, TimeUnit.DAYS)
                             .build()
             );
+            log.info("Generated presigned URL for file: {}", fileName);
+            return url;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get file preview URL", e);
+            log.error("Failed to get file preview URL for: {}", fileName, e);
+            throw new RuntimeException("Failed to get file preview URL: " + e.getMessage(), e);
         }
     }
 

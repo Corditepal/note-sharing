@@ -58,7 +58,7 @@
 
         <div class="user-avatar-block" @click="goToProfile">
           <img 
-            src="/assets/avatars/avatar.png" 
+            :src="userAvatarUrl" 
             alt="用户头像" 
             class="user-avatar-img"
           />
@@ -139,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, watch, onMounted, nextTick, computed } from 'vue'
 import SearchView from '../components/user/SearchView.vue'
 import WorkspaceView from '../components/user/WorkspaceView.vue'
 import ProfileView from '../components/user/ProfileView.vue'
@@ -154,11 +154,18 @@ import QADetailView from '../components/user/QADetailView.vue'
 import { useRouter, useRoute } from 'vue-router'
 import service from '../api/request'
 import { useUserStore } from '@/stores/user'
+import { storeToRefs } from 'pinia'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const { userInfo } = storeToRefs(userStore)
 const BASE_PATH = "/noting"
+
+// 计算用户头像URL
+const userAvatarUrl = computed(() => {
+  return userInfo.value.avatarUrl || '/assets/avatars/avatar.png'
+})
 
 const tabs = [
   { value: 'follow', label: '关注', desc: 'Follow' },

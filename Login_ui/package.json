@@ -29,6 +29,7 @@
     "@tiptap/vue-3": "^3.11.0",
     "axios": "^1.13.2",
     "core-js": "^3.8.3",
+    "cropperjs": "^1.5.13",
     "lodash-es": "^4.17.21",
     "lowlight": "^3.3.0",
     "markdown-it": "^14.1.0",

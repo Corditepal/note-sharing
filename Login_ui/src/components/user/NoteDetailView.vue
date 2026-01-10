@@ -153,7 +153,6 @@
               <div class="comment-main">
                 <div class="comment-header">
                   <div class="comment-author-info">
-                    <div class="comment-level-badge primary">主评论</div>
                     <img 
                       :src="'/assets/avatars/avatar.png'" 
                       :alt="comment.username"
@@ -239,7 +238,6 @@
                     <div class="comment-main">
                       <div class="comment-header">
                         <div class="comment-author-info">
-                          <div class="comment-level-badge reply">回复</div>
                           <img 
                             :src="'/assets/avatars/avatar.png'" 
                             :alt="replyGroup.mainReply.username"
@@ -850,7 +848,7 @@ const handleReply = (comment) => {
 // 回复子评论
 const handleReplyToReply = (parentComment, reply) => {
   replyingTo.value = reply._id
-  replyToParentId.value = parentComment._id
+  replyToParentId.value = reply._id  // 回复二级评论时，parentId应该是二级评论的ID
   replyToRemarkId.value = reply._id
   replyToUsername.value = reply.username
   replyContent.value = ''
@@ -874,7 +872,8 @@ const handleSubmitReply = async (parentComment, targetReply = null) => {
     const replyTarget = targetReply || parentComment
     const finalReplyToUsername = replyToUsername.value || replyTarget.username
     const finalReplyToRemarkId = replyToRemarkId.value || replyTarget._id
-    const finalParentId = replyToParentId.value || parentComment._id
+    // 如果回复的是二级评论（targetReply存在），parentId应该是二级评论的ID；否则是主评论的ID
+    const finalParentId = targetReply ? targetReply._id : (replyToParentId.value || parentComment._id)
     
     const remarkData = {
       noteId: noteDetail.value.noteId,

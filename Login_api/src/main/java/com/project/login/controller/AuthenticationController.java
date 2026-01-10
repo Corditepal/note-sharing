@@ -13,8 +13,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -93,13 +95,44 @@ public class AuthenticationController {
                     "username", user.getUsername(),
                     "email", user.getEmail(),
                     "studentNumber", user.getStudentNumber() == null ? "" : user.getStudentNumber(), // 防止 null
-                    "enabled", user.isEnabled()
+                    "enabled", user.isEnabled(),
+                    "avatarUrl", user.getAvatarUrl() == null ? "" : user.getAvatarUrl() // 添加头像URL
             );
 
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
             return ResponseEntity.status(401).body(Map.of("error", "Token 解析失败"));
+        }
+    }
+
+    // --- 7) 上传用户头像 ---
+    @Operation(summary = "Upload user avatar")
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> uploadAvatar(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestPart("file") MultipartFile file
+    ) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body(Map.of("error", "用户未登录或 Token 格式错误"));
+        }
+
+        String token = authorizationHeader.substring(7);
+
+        try {
+            UserEntity user = authService.getUserByToken(token);
+            if (user == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Token 无效或已过期"));
+            }
+
+            String avatarUrl = userService.updateAvatar(user.getId(), file);
+            return ResponseEntity.ok(Map.of("message", "头像上传成功", "avatarUrl", avatarUrl));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("上传头像失败", e);
+            return ResponseEntity.status(500).body(Map.of("error", "上传头像失败，请稍后重试"));
         }
     }
 

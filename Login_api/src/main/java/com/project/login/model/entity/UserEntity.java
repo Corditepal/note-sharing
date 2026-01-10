@@ -36,5 +36,8 @@ public class UserEntity {
 
     @Column(name = "updated_at")
     private Instant updatedAt = Instant.now();
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
 }
 

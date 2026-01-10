@@ -31,4 +31,6 @@ public class UserDO {
 
     @Builder.Default
     private Instant updatedAt = Instant.now();
+
+    private String avatarUrl;
 }
