@@ -112,6 +112,15 @@
         </div>
       </div>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :duration="toastDuration"
+      @close="hideMessage"
+    />
   </div>
 </template>
 
@@ -120,6 +129,8 @@ import { ref, onMounted, computed, watch } from "vue";
 // 如果不再使用 router 进行跳转，可以移除 useRouter
 import service from '../../api/request';
 import { useUserStore } from '@/stores/user';
+import MessageToast from '@/components/MessageToast.vue';
+import { useMessage } from '@/utils/message';
 
 // --- 1. 必须显式定义 emit 和 props ---
 const props = defineProps({
@@ -128,6 +139,9 @@ const props = defineProps({
 const emit = defineEmits(['openNotebook', 'workspace-selected']);
 
 const userStore = useUserStore();
+
+// 消息提示
+const { showToast, toastMessage, toastType, toastDuration, showSuccess, showError, hideMessage } = useMessage();
 
 // 基础 API 地址
 const BASE_PATH = "/noting";
@@ -266,7 +280,7 @@ const fetchWorkspaces = async () => {
     }
   } catch (error) {
     console.error("加载笔记空间失败:", error);
-    alert("加载笔记空间失败，请检查网络或登录状态。");
+    showError("加载笔记空间失败，请检查网络或登录状态。");
   }
 };
 
@@ -335,7 +349,7 @@ async function deleteWorkspace() {
 
   } catch (error) {
     console.error("删除笔记空间失败:", error);
-    alert("删除失败: " + (error.response?.data?.message || '网络或服务器错误'));
+    showError("删除失败: " + (error.response?.data?.message || '网络或服务器错误'));
   } finally {
     hideAllContextMenus();
   }
@@ -395,7 +409,7 @@ async function deleteNotebook() {
 
   } catch (error) {
     console.error("删除笔记本失败:", error);
-    alert("删除失败: " + (error.response?.data?.message || '网络或服务器错误'));
+    showError("删除失败: " + (error.response?.data?.message || '网络或服务器错误'));
   } finally {
     hideAllContextMenus();
   }
@@ -435,7 +449,7 @@ const openCreateWorkspace = () => {
 const openCreateNotebook = () => {
   hideAllContextMenus();
   if (!selectedWorkspace.value) {
-    alert("请先选择或创建一个笔记空间！");
+    showError("请先选择或创建一个笔记空间！");
     return;
   }
   dialog.value = {
@@ -483,12 +497,12 @@ const confirmDialog = async () => {
   const { type, form } = dialog.value;
 
   if (!CURRENT_USER_ID.value) {
-    alert("用户认证信息缺失，请重新登录。");
+    showError("用户认证信息缺失，请重新登录。");
     return;
   }
 
   if (type !== 'move-notebook' && !(form.name || '').toString().trim()) {
-    alert("名称不能为空！");
+    showError("名称不能为空！");
     return;
   }
 
@@ -538,7 +552,7 @@ const confirmDialog = async () => {
       selectedNotebook.value = null;
     }
   } catch (error) {
-    alert(`${dialog.value.title} 失败: ` + (error.response?.data?.message || '网络或服务器错误'));
+    showError(`${dialog.value.title} 失败: ` + (error.response?.data?.message || '网络或服务器错误'));
   }
   dialog.value.visible = false;
 };

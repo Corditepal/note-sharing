@@ -83,23 +83,29 @@
       </section>
 
       <section v-else-if="currentTab === 'search'">
-        <SearchView 
-          ref="searchViewRef"
-          :initialKeyword="searchKeywordFromRoute" 
-          @open-note-detail="handleOpenNoteDetail"
-        />
+        <keep-alive>
+          <SearchView 
+            ref="searchViewRef"
+            :initialKeyword="searchKeywordFromRoute" 
+            @open-note-detail="handleOpenNoteDetail"
+          />
+        </keep-alive>
       </section>
       <section v-else-if="currentTab === 'recommend'">
-        <RecommendView 
-          ref="recommendViewRef"
-          @open-note-detail="handleOpenNoteDetail" 
-        />
+        <keep-alive>
+          <RecommendView 
+            ref="recommendViewRef"
+            @open-note-detail="handleOpenNoteDetail" 
+          />
+        </keep-alive>
       </section>
       <section v-else-if="currentTab === 'hot'">
-        <HotView 
-          ref="hotViewRef"
-          @open-note-detail="handleOpenNoteDetail" 
-        />
+        <keep-alive>
+          <HotView 
+            ref="hotViewRef"
+            @open-note-detail="handleOpenNoteDetail" 
+          />
+        </keep-alive>
       </section>
       <section v-else-if="currentTab === 'note-detail' && viewingNoteId">
         <NoteDetailView 
@@ -179,6 +185,14 @@ const tabs = [
 const searchKeyword = ref('')
 const searchKeywordFromRoute = ref('')
 
+// 笔记详情页相关状态（需要在 restoreNoteDetailFromRoute 之前定义）
+const viewingNoteId = ref(null) // 当前查看的笔记详情ID（用于note-detail tab）
+const noteDetailStats = ref(null) // 笔记详情页的统计信息（从搜索结果传递过来）
+const noteDetailTitle = ref(null) // 笔记详情页的标题（从搜索结果传递过来）
+
+// workspace tab 相关状态（需要在 restoreWorkspaceFromRoute 之前定义）
+const selectedWorkspaceId = ref(null) // 当前选中的笔记空间ID（在workspace tab时）
+
 // 从 URL 查询参数中读取 tab，如果没有则使用默认值
 const getTabFromRoute = () => {
   const tabFromQuery = route.query.tab
@@ -194,20 +208,52 @@ const currentTab = ref(getTabFromRoute())
 
 // 当 currentTab 改变时，同步更新 URL 查询参数
 watch(currentTab, (newTab, oldTab) => {
-  if (route.query.tab !== newTab) {
-    const newQuery = { ...route.query, tab: newTab }
-    
-    // 当切换到搜索 tab 时，如果没有 keyword 或 searchType，清除 searchType
-    // 这样确保从主页搜索框搜索时，searchType 会被设置为 'notes'
-    if (newTab === 'search' && !route.query.keyword) {
-      delete newQuery.searchType
-    }
-    
-    router.replace({
-      path: route.path,
-      query: newQuery
-    })
+  console.log('[MainView] currentTab 变化:', oldTab, '->', newTab, '当前 route.query.tab:', route.query.tab)
+  
+  // 如果 URL 中的 tab 已经和 newTab 一致，不需要更新（避免循环）
+  if (route.query.tab === newTab) {
+    console.log('[MainView] URL tab 已经是', newTab, '，跳过更新')
+    return
   }
+  
+  // 如果切换到 note-detail，并且 URL 中没有 fromTab，说明可能是通过 handleOpenNoteDetail 触发的
+  // 这种情况下，让 handleOpenNoteDetail 来处理 URL 更新，避免覆盖 fromTab
+  if (newTab === 'note-detail' && !route.query.fromTab) {
+    console.log('[MainView] 切换到 note-detail 但没有 fromTab，等待 handleOpenNoteDetail 处理')
+    return
+  }
+  
+  const newQuery = { ...route.query, tab: newTab }
+  
+  // 如果切换到 note-detail，保留 fromTab（如果存在）
+  if (newTab === 'note-detail' && route.query.fromTab) {
+    newQuery.fromTab = route.query.fromTab
+  }
+  
+  // 当切换到搜索 tab 时，如果没有 keyword，清除 searchType
+  // 这样确保从主页搜索框搜索时，searchType 会被设置为 'notes'
+  // 但如果是从详情页返回（有 keyword），则保留 searchType
+  if (newTab === 'search' && !route.query.keyword) {
+    delete newQuery.searchType
+  }
+  // 如果是从详情页返回到搜索页，确保保留搜索参数
+  else if (newTab === 'search' && oldTab === 'note-detail' && route.query.keyword) {
+    // 保留 keyword 和 searchType，不做任何删除操作
+  }
+  
+  // 如果是从详情页返回到其他页面，清除详情页相关参数
+  if (oldTab === 'note-detail' && newTab !== 'note-detail' && newTab !== 'search') {
+    delete newQuery.fromTab
+    delete newQuery.noteId
+    delete newQuery.title
+    delete newQuery.fileType
+  }
+  
+  console.log('[MainView] 更新 URL，newQuery:', newQuery)
+  router.replace({
+    path: route.path,
+    query: newQuery
+  })
   // 当切换离开 note-detail tab 时，清除笔记详情相关状态
   if (oldTab === 'note-detail' && newTab !== 'note-detail') {
     viewingNoteId.value = null
@@ -250,12 +296,49 @@ watch(currentTab, (newTab, oldTab) => {
   }
 })
 
+// 从 URL 恢复笔记详情页状态（需要在 watch 之前定义，因为 watch 使用了 immediate: true）
+const restoreNoteDetailFromRoute = () => {
+  if (currentTab.value === 'note-detail') {
+    const noteIdFromQuery = route.query.noteId
+    if (noteIdFromQuery) {
+      const noteId = Number(noteIdFromQuery)
+      if (!isNaN(noteId) && noteId > 0) {
+        viewingNoteId.value = noteId
+        // 从 URL 恢复标题
+        noteDetailTitle.value = route.query.title || null
+      }
+    }
+  }
+}
+
+// 从 URL 恢复 workspace tab 的选中空间（需要在 watch 之前定义，因为 watch 使用了 immediate: true）
+const restoreWorkspaceFromRoute = () => {
+  // 只有在 workspace tab 时才恢复空间ID
+  if (currentTab.value === 'workspace') {
+    const workspaceIdFromQuery = route.query.workspaceId
+    if (workspaceIdFromQuery) {
+      const workspaceId = Number(workspaceIdFromQuery)
+      if (!isNaN(workspaceId)) {
+        selectedWorkspaceId.value = workspaceId
+      }
+    }
+  }
+}
+
 // 监听路由变化，从 URL 中恢复 tab 状态（处理浏览器前进/后退）
-watch(() => route.query.tab, (newTab) => {
+watch(() => route.query.tab, (newTab, oldTab) => {
+  console.log('[MainView] 路由 tab 变化:', oldTab, '->', newTab, '当前 currentTab:', currentTab.value, '完整 query:', JSON.stringify(route.query))
   if (newTab) {
     const validTabs = [...tabs.map(t => t.value), 'search', 'profile', 'note-detail', 'qa-detail']
     if (validTabs.includes(newTab)) {
-      currentTab.value = newTab
+      // 强制更新 currentTab，确保与 URL 同步
+      if (currentTab.value !== newTab) {
+        console.log('[MainView] 更新 currentTab 从', currentTab.value, '到', newTab)
+        currentTab.value = newTab
+      } else {
+        console.log('[MainView] currentTab 已经是', newTab, '，但强制检查是否需要更新')
+        // 即使值相同，也确保状态正确
+      }
       // 当切换到 workspace tab 时，恢复选中的空间
       if (newTab === 'workspace') {
         restoreWorkspaceFromRoute()
@@ -264,9 +347,13 @@ watch(() => route.query.tab, (newTab) => {
       if (newTab === 'note-detail') {
         restoreNoteDetailFromRoute()
       }
+    } else {
+      console.warn('[MainView] 无效的 tab 值:', newTab)
     }
+  } else {
+    console.log('[MainView] URL 中没有 tab 参数')
   }
-})
+}, { immediate: true }) // 改为 immediate: true，确保初始化时也能触发
 
 // 监听 workspaceId 变化，从 URL 中恢复空间状态
 watch(() => route.query.workspaceId, (newWorkspaceId) => {
@@ -286,10 +373,6 @@ const editingSpaceId = ref(null);
 const editingNotebookName = ref(null);
 const editingNotebookList = ref([]); // 使用数组类型
 const editingNoteId = ref(null); // 当前选中的笔记ID
-const selectedWorkspaceId = ref(null); // 当前选中的笔记空间ID（在workspace tab时）
-const viewingNoteId = ref(null); // 当前查看的笔记详情ID（用于note-detail tab）
-const noteDetailStats = ref(null); // 笔记详情页的统计信息（从搜索结果传递过来）
-const noteDetailTitle = ref(null); // 笔记详情页的标题（从搜索结果传递过来）
 const qaRef = ref(null); // 问答组件实例
 const searchViewRef = ref(null); // 搜索视图组件实例
 const recommendViewRef = ref(null); // 推荐视图组件实例
@@ -457,35 +540,6 @@ const handleCloseEditor = () => {
   currentTab.value = 'workspace';
 }
 
-// 从 URL 恢复 workspace tab 的选中空间
-const restoreWorkspaceFromRoute = () => {
-  // 只有在 workspace tab 时才恢复空间ID
-  if (currentTab.value === 'workspace') {
-    const workspaceIdFromQuery = route.query.workspaceId
-    if (workspaceIdFromQuery) {
-      const workspaceId = Number(workspaceIdFromQuery)
-      if (!isNaN(workspaceId)) {
-        selectedWorkspaceId.value = workspaceId
-      }
-    }
-  }
-}
-
-// 从 URL 恢复笔记详情页状态
-const restoreNoteDetailFromRoute = () => {
-  if (currentTab.value === 'note-detail') {
-    const noteIdFromQuery = route.query.noteId
-    if (noteIdFromQuery) {
-      const noteId = Number(noteIdFromQuery)
-      if (!isNaN(noteId) && noteId > 0) {
-        viewingNoteId.value = noteId
-        // 从 URL 恢复标题
-        noteDetailTitle.value = route.query.title || null
-      }
-    }
-  }
-}
-
 // 处理 WorkspaceView 发出的"空间选中"事件
 const handleWorkspaceSelected = (workspaceId) => {
   selectedWorkspaceId.value = workspaceId
@@ -541,7 +595,8 @@ const handleOpenNoteDetail = (payload) => {
   if (payload && payload.noteId) {
     viewingNoteId.value = payload.noteId
     const sourceTab = payload.fromTab || currentTab.value || 'hot'
-    currentTab.value = 'note-detail'
+    
+    console.log('[MainView] handleOpenNoteDetail, payload.fromTab:', payload.fromTab, 'currentTab.value:', currentTab.value, 'sourceTab:', sourceTab)
     
     // 保存标题（如果从搜索结果传递过来）
     noteDetailTitle.value = payload.title || null
@@ -559,18 +614,30 @@ const handleOpenNoteDetail = (payload) => {
       noteDetailStats.value = null // 如果没有传递统计信息，让组件自己获取
     }
     
-    // 更新URL参数
+    // 先更新URL参数，确保 fromTab 被正确设置，然后再更新 currentTab
+    const newQuery = {
+      ...route.query,
+      tab: 'note-detail',
+      fromTab: sourceTab, // 确保 fromTab 被设置
+      noteId: payload.noteId,
+      title: payload.title || undefined,
+      fileType: payload.fileType || undefined
+    }
+    
+    // 如果来自搜索结果，保留搜索参数
+    if (sourceTab === 'search') {
+      newQuery.keyword = route.query.keyword
+      newQuery.searchType = route.query.searchType || 'notes'
+    }
+    
+    console.log('[MainView] 更新 URL，newQuery:', newQuery)
+    // 先更新 URL，再更新 currentTab，避免 watch 覆盖 fromTab
     router.replace({
       path: route.path,
-      query: {
-        ...route.query,
-        tab: 'note-detail',
-        fromTab: sourceTab,
-        noteId: payload.noteId,
-        title: payload.title || undefined,
-        fileType: payload.fileType || undefined
-      }
+      query: newQuery
     })
+    // 同步更新 currentTab（watch 会检查 URL 中是否有 fromTab，如果有就跳过更新）
+    currentTab.value = 'note-detail'
   }
 }
 
@@ -579,27 +646,69 @@ const handleStatsUpdated = (payload) => {
   if (!payload || !payload.noteId) return
   
   // 更新 noteDetailStats
-  if (noteDetailStats.value && noteDetailStats.value.noteId === payload.noteId) {
-    noteDetailStats.value.comments = payload.comments
+  if (noteDetailStats.value) {
+    if (payload.comments !== undefined) {
+      noteDetailStats.value.comments = payload.comments
+    }
+    if (payload.likes !== undefined) {
+      noteDetailStats.value.likes = payload.likes
+    }
+    if (payload.favorites !== undefined) {
+      noteDetailStats.value.favorites = payload.favorites
+    }
   }
   
-  // 更新各个列表页面中对应笔记的评论数量
-  if (searchViewRef.value && typeof searchViewRef.value.updateCommentCount === 'function') {
-    searchViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+  // 更新各个列表页面中对应笔记的统计数量
+  if (searchViewRef.value) {
+    if (typeof searchViewRef.value.updateCommentCount === 'function' && payload.comments !== undefined) {
+      searchViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+    }
+    if (typeof searchViewRef.value.updateLikeCount === 'function' && payload.likes !== undefined) {
+      searchViewRef.value.updateLikeCount(payload.noteId, payload.likes)
+    }
+    if (typeof searchViewRef.value.updateFavoriteCount === 'function' && payload.favorites !== undefined) {
+      searchViewRef.value.updateFavoriteCount(payload.noteId, payload.favorites)
+    }
   }
-  if (recommendViewRef.value && typeof recommendViewRef.value.updateCommentCount === 'function') {
-    recommendViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+  if (recommendViewRef.value) {
+    if (typeof recommendViewRef.value.updateCommentCount === 'function' && payload.comments !== undefined) {
+      recommendViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+    }
+    if (typeof recommendViewRef.value.updateLikeCount === 'function' && payload.likes !== undefined) {
+      recommendViewRef.value.updateLikeCount(payload.noteId, payload.likes)
+    }
+    if (typeof recommendViewRef.value.updateFavoriteCount === 'function' && payload.favorites !== undefined) {
+      recommendViewRef.value.updateFavoriteCount(payload.noteId, payload.favorites)
+    }
   }
-  if (hotViewRef.value && typeof hotViewRef.value.updateCommentCount === 'function') {
-    hotViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+  if (hotViewRef.value) {
+    if (typeof hotViewRef.value.updateCommentCount === 'function' && payload.comments !== undefined) {
+      hotViewRef.value.updateCommentCount(payload.noteId, payload.comments)
+    }
+    if (typeof hotViewRef.value.updateLikeCount === 'function' && payload.likes !== undefined) {
+      hotViewRef.value.updateLikeCount(payload.noteId, payload.likes)
+    }
+    if (typeof hotViewRef.value.updateFavoriteCount === 'function' && payload.favorites !== undefined) {
+      hotViewRef.value.updateFavoriteCount(payload.noteId, payload.favorites)
+    }
   }
 }
 
 // 监听路由中的搜索关键词
 watch(() => route.query.keyword, (newKeyword) => {
-  if (newKeyword && currentTab.value === 'search') {
-    searchKeywordFromRoute.value = newKeyword
+  if (newKeyword) {
     searchKeyword.value = newKeyword
+    // 如果当前在搜索 tab，更新 searchKeywordFromRoute 以触发 SearchView 的搜索
+    if (currentTab.value === 'search') {
+      searchKeywordFromRoute.value = newKeyword
+    }
+  }
+})
+
+// 监听 tab 切换，当切换到 search 时，如果有 keyword，更新 searchKeywordFromRoute
+watch(() => currentTab.value, (newTab) => {
+  if (newTab === 'search' && route.query.keyword) {
+    searchKeywordFromRoute.value = route.query.keyword
   }
 })
 

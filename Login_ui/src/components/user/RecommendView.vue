@@ -196,9 +196,27 @@ const updateCommentCount = (noteId, commentCount) => {
   }
 }
 
+// 更新列表中指定笔记的点赞数量
+const updateLikeCount = (noteId, likeCount) => {
+  const item = recommendList.value.find(item => item.noteId === noteId)
+  if (item) {
+    item.likeCount = likeCount
+  }
+}
+
+// 更新列表中指定笔记的收藏数量
+const updateFavoriteCount = (noteId, favoriteCount) => {
+  const item = recommendList.value.find(item => item.noteId === noteId)
+  if (item) {
+    item.favoriteCount = favoriteCount
+  }
+}
+
 // 暴露方法供父组件调用
 defineExpose({
-  updateCommentCount
+  updateCommentCount,
+  updateLikeCount,
+  updateFavoriteCount
 })
 
 const getCurrentUserId = () => {
@@ -383,18 +401,8 @@ const handleResultClick = async (item) => {
       favoriteCount: latestStats?.favorites ?? item.favoriteCount ?? 0,
       commentCount: latestStats?.comments ?? item.commentCount ?? 0
     })
-
-    router.replace({
-      path: route.path,
-      query: {
-        ...route.query,
-        tab: 'note-detail',
-        fromTab: 'recommend',
-        noteId: item.noteId,
-        title: item.title || undefined,
-        fileType: item.fileType || undefined
-      }
-    })
+    
+    // 注意：路由更新由 MainView 的 handleOpenNoteDetail 统一处理
   } catch (error) {
     console.error('打开笔记详情页失败:', error)
   }

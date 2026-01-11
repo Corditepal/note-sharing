@@ -124,9 +124,27 @@ const updateCommentCount = (noteId, commentCount) => {
   }
 }
 
+// 更新列表中指定笔记的点赞数量
+const updateLikeCount = (noteId, likeCount) => {
+  const item = hotList.value.find(item => item.noteId === noteId)
+  if (item) {
+    item.likeCount = likeCount
+  }
+}
+
+// 更新列表中指定笔记的收藏数量
+const updateFavoriteCount = (noteId, favoriteCount) => {
+  const item = hotList.value.find(item => item.noteId === noteId)
+  if (item) {
+    item.favoriteCount = favoriteCount
+  }
+}
+
 // 暴露方法供父组件调用
 defineExpose({
-  updateCommentCount
+  updateCommentCount,
+  updateLikeCount,
+  updateFavoriteCount
 })
 
 const getViewCacheKey = (noteId, userId) => {
@@ -267,18 +285,8 @@ const handleResultClick = async (item) => {
       favoriteCount: latestStats?.favorites ?? item.favoriteCount ?? 0,
       commentCount: latestStats?.comments ?? item.commentCount ?? 0
     })
-
-    router.replace({
-      path: route.path,
-      query: {
-        ...route.query,
-        tab: 'note-detail',
-        fromTab: 'hot',
-        noteId: item.noteId,
-        title: item.title || undefined,
-        fileType: item.fileType || undefined
-      }
-    })
+    
+    // 注意：路由更新由 MainView 的 handleOpenNoteDetail 统一处理
   } catch (error) {
     console.error('打开笔记详情页失败:', error)
   }
@@ -304,6 +312,8 @@ onMounted(() => {
   min-height: 100vh;
   padding: 20px 24px 100px;
   background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
 }
 
 .hot-panel {
@@ -314,7 +324,10 @@ onMounted(() => {
   border-radius: 8px;
   padding: 32px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  min-height: 400px;
+  min-height: calc(100vh - 200px);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .panel-header {
@@ -370,6 +383,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .result-card {
@@ -478,6 +493,9 @@ onMounted(() => {
   flex-direction: column;
   gap: 10px;
   align-items: center;
+  flex: 1;
+  justify-content: center;
+  min-height: 400px;
 }
 
 .state-card.error {

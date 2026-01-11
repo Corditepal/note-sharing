@@ -115,6 +115,15 @@
         </footer>
       </div>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :duration="toastDuration"
+      @close="hideMessage"
+    />
   </div>
 </template>
 
@@ -128,10 +137,15 @@ import {
   deleteQuestion
 } from '@/api/qa'
 import { formatTime } from '@/utils/time'
+import MessageToast from '@/components/MessageToast.vue'
+import { useMessage } from '@/utils/message'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+
+// 消息提示
+const { showToast, toastMessage, toastType, toastDuration, showSuccess, showError, hideMessage } = useMessage()
 
 // 标签页配置
 const tabs = [
@@ -335,14 +349,14 @@ const closeAskDialog = () => {
 const handleCreateQuestion = async () => {
   const userId = userStore.userInfo?.id
   if (!userId) {
-    window.alert('请先登录后再进行此操作')
+    showError('请先登录后再进行此操作')
     return
   }
   
   const title = askForm.title.trim()
   const content = askForm.content.trim()
   if (!title || !content) {
-    window.alert('标题和内容不能为空')
+    showError('标题和内容不能为空')
     return
   }
   
@@ -375,7 +389,7 @@ const handleCreateQuestion = async () => {
     }
   } catch (err) {
     console.error('创建问题失败', err)
-    window.alert('创建问题失败，请检查后端接口或输入内容')
+    showError('创建问题失败，请检查后端接口或输入内容')
   } finally {
     loading.value = false
   }
@@ -390,13 +404,13 @@ const handleDeleteQuestion = async (item) => {
   
   const userId = userStore.userInfo?.id
   if (!userId) {
-    window.alert('请先登录后再进行此操作')
+    showError('请先登录后再进行此操作')
     return
   }
   
   // 检查是否是作者
   if (item.authorId !== userId) {
-    window.alert('只能删除自己的问题')
+    showError('只能删除自己的问题')
     return
   }
   
@@ -408,10 +422,10 @@ const handleDeleteQuestion = async (item) => {
     questionList.value = questionList.value.filter(q => q.questionId !== item.questionId)
     saveQuestionsToStorage()
     
-    window.alert('删除成功')
+    showSuccess('删除成功')
   } catch (err) {
     console.error('删除问题失败', err)
-    window.alert('删除问题失败，请稍后重试')
+    showError('删除问题失败，请稍后重试')
   } finally {
     loading.value = false
   }

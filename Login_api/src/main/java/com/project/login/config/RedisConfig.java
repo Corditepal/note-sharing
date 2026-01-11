@@ -21,25 +21,25 @@ public class RedisConfig {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(factory);
 
-        // 使用 Jackson2JsonRedisSerializer 来序列化和反序列化 redis 的 value 值
+        // Jackson JSON 序列化器（用于 Value 对象）
         ObjectMapper om = new ObjectMapper();
         om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
-        // 允许序列化多态对象（即保存对象类型信息），Spring Boot 3.x/Jackson 2.x 推荐写法
+        // 支持多态对象（保存对象类型信息）
         om.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, ObjectMapper.DefaultTyping.NON_FINAL);
-
         Jackson2JsonRedisSerializer<Object> jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer<>(om, Object.class);
 
+        // String 序列化器（用于 Key 和 Hash 的字段）
         StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
 
-        // key 采用 String 的序列化方式
+        // Key、HashKey 都用 String
         template.setKeySerializer(stringRedisSerializer);
-        // hash 的 key 也采用 String 的序列化方式
         template.setHashKeySerializer(stringRedisSerializer);
 
-        // value 序列化方式采用 jackson
+        // Value 对象用 Jackson JSON（非 Hash）
         template.setValueSerializer(jackson2JsonRedisSerializer);
-        // hash 的 value 序列化方式采用 jackson
-        template.setHashValueSerializer(jackson2JsonRedisSerializer);
+
+        // Hash 的 Value 用 String（统计类字段，兼容现有数据）
+        template.setHashValueSerializer(stringRedisSerializer);
 
         template.afterPropertiesSet();
         return template;

@@ -158,9 +158,33 @@ const updateCommentCount = (noteId, commentCount) => {
   }
 }
 
+// 更新列表中指定笔记的点赞数量
+const updateLikeCount = (noteId, likeCount) => {
+  // 只更新笔记类型的搜索结果
+  if (searchType.value === 'notes') {
+    const item = searchResults.value.find(item => item.noteId === noteId)
+    if (item) {
+      item.likeCount = likeCount
+    }
+  }
+}
+
+// 更新列表中指定笔记的收藏数量
+const updateFavoriteCount = (noteId, favoriteCount) => {
+  // 只更新笔记类型的搜索结果
+  if (searchType.value === 'notes') {
+    const item = searchResults.value.find(item => item.noteId === noteId)
+    if (item) {
+      item.favoriteCount = favoriteCount
+    }
+  }
+}
+
 // 暴露方法供父组件调用
 defineExpose({
-  updateCommentCount
+  updateCommentCount,
+  updateLikeCount,
+  updateFavoriteCount
 })
 
 const getViewCacheKey = (noteId, userId) => {
@@ -317,7 +341,11 @@ const handleResultClick = async (result) => {
       query: {
         ...route.query,
         tab: 'qa-detail',
-        questionId: result.questionId
+        questionId: result.questionId,
+        fromTab: 'search',
+        // 保留搜索参数，以便返回时能恢复搜索结果
+        keyword: searchQuery.value,
+        searchType: searchType.value
       }
     })
     return
@@ -372,6 +400,7 @@ const handleResultClick = async (result) => {
       noteId: result.noteId,
       title: result.title || '无标题',
       fileType, // 传后端返回的类型，未返回时让详情页自行判断
+      fromTab: 'search', // 明确标记来自搜索结果
       // 传递统计信息
       authorName: statsPayload.authorName,
       viewCount: statsPayload.viewCount,
@@ -388,7 +417,11 @@ const handleResultClick = async (result) => {
         tab: 'note-detail',
         noteId: result.noteId,
         title: result.title || undefined,
-        fileType: fileType || undefined
+        fileType: fileType || undefined,
+        fromTab: 'search',
+        // 保留搜索参数，以便返回时能恢复搜索结果
+        keyword: searchQuery.value,
+        searchType: searchType.value
       }
     })
   } catch (error) {
@@ -473,32 +506,44 @@ watch(() => props.initialKeyword, (newKeyword) => {
 
 // 监听路由中的关键词和搜索类型
 watch(() => route.query.keyword, (newKeyword, oldKeyword) => {
-  if (newKeyword && newKeyword !== searchQuery.value) {
-    searchQuery.value = newKeyword
+  // 如果有关键词，且（关键词变化了 或 当前没有搜索结果），则执行搜索
+  if (newKeyword) {
+    const keywordChanged = newKeyword !== searchQuery.value
+    let needsSearch = keywordChanged || !hasSearched.value || searchResults.value.length === 0
     
-    // 当关键词变化时，检查 URL 中的 searchType
-    // 如果 URL 中没有 searchType 或 searchType 是 'notes'，重置为笔记类型
+    if (keywordChanged) {
+      searchQuery.value = newKeyword
+    }
+    
+    // 当关键词变化时，检查 URL 中的 searchType，并同步到组件状态
     const urlSearchType = route.query.searchType
-    if (!urlSearchType || urlSearchType === 'notes') {
-      // 如果当前类型不是笔记，重置为笔记
-      if (searchType.value !== 'notes') {
-        searchResults.value = []
-        hasSearched.value = false
-        searchType.value = 'notes'
-      }
-    } else if (urlSearchType === 'qa') {
+    if (urlSearchType === 'qa') {
       // 如果 URL 中明确指定了问答类型，使用问答类型
       if (searchType.value !== 'qa') {
         searchResults.value = []
         hasSearched.value = false
         searchType.value = 'qa'
+        // 类型改变时也需要搜索
+        needsSearch = true
+      }
+    } else if (urlSearchType === 'notes' || !urlSearchType) {
+      // 如果 searchType 是 'notes' 或不存在，使用笔记类型
+      // 但不要强制重置，只在类型确实不同时才更新
+      if (searchType.value !== 'notes') {
+        searchResults.value = []
+        hasSearched.value = false
+        searchType.value = 'notes'
+        // 类型改变时也需要搜索
+        needsSearch = true
       }
     }
     
-    // 执行搜索（关键词变化时总是重新搜索）
-    nextTick(() => {
-      handleSearch()
-    })
+    // 如果需要搜索，执行搜索
+    if (needsSearch) {
+      nextTick(() => {
+        handleSearch()
+      })
+    }
   }
 }, { immediate: false })
 
@@ -517,7 +562,8 @@ watch(() => route.query.searchType, (newType, oldType) => {
       }
     }
   } else if (!newType) {
-    // 如果 URL 中没有 searchType，重置为默认的笔记类型
+    // 如果 URL 中没有 searchType，只有在当前类型不是笔记时才重置
+    // 这样可以避免从问答搜索返回时被错误重置
     if (searchType.value !== 'notes') {
       searchResults.value = []
       hasSearched.value = false
@@ -532,38 +578,84 @@ watch(() => route.query.searchType, (newType, oldType) => {
   }
 }, { immediate: true })
 
-// 组件挂载时，如果有初始关键词则执行搜索
-onMounted(() => {
-  // 从路由中恢复搜索类型，如果没有则默认为"笔记"
+// 恢复搜索状态的辅助函数
+const restoreSearchState = (forceSearch = false) => {
+  // 从路由中恢复搜索类型
   const urlSearchType = route.query.searchType
+  let searchTypeChanged = false
+  
   if (urlSearchType === 'qa' || urlSearchType === 'notes') {
-    searchType.value = urlSearchType
+    if (searchType.value !== urlSearchType) {
+      searchType.value = urlSearchType
+      searchTypeChanged = true
+    }
   } else {
     // 如果没有 searchType 参数，默认使用"笔记"
-    searchType.value = 'notes'
-    // 如果 URL 中没有 searchType，但有关键词，更新 URL 以明确设置 searchType
-    if (route.query.keyword && !urlSearchType) {
-      router.replace({
-        path: route.path,
-        query: {
-          ...route.query,
-          searchType: 'notes'
-        }
-      })
+    // 但只有在当前类型不是笔记时才更新，避免覆盖已有的问答搜索
+    if (searchType.value !== 'notes') {
+      searchType.value = 'notes'
+      searchTypeChanged = true
     }
   }
   
-  if (props.initialKeyword) {
+  // 如果搜索类型改变了，清空结果
+  if (searchTypeChanged) {
+    searchResults.value = []
+    hasSearched.value = false
+  }
+  
+  // 从路由中恢复搜索关键词
+  if (route.query.keyword) {
+    const keywordChanged = searchQuery.value !== route.query.keyword
+    if (keywordChanged) {
+      searchQuery.value = route.query.keyword
+      hasSearched.value = false
+      searchResults.value = []
+    }
+    
+    // 如果没有搜索结果或关键词/类型改变了，或强制搜索，执行搜索
+    if (forceSearch || !hasSearched.value || searchResults.value.length === 0 || keywordChanged || searchTypeChanged) {
+      nextTick(() => {
+        handleSearch()
+      })
+    }
+  } else if (props.initialKeyword) {
     searchQuery.value = props.initialKeyword
     // 确保搜索类型是笔记（从主页搜索框搜索时）
     if (searchType.value !== 'notes') {
       searchType.value = 'notes'
+      searchResults.value = []
+      hasSearched.value = false
     }
     handleSearch()
-  } else if (route.query.keyword) {
-    searchQuery.value = route.query.keyword
-    handleSearch()
   }
+}
+
+// 监听路由 tab 变化，当切换回 search tab 时恢复搜索状态
+watch(() => route.query.tab, (newTab, oldTab) => {
+  if (newTab === 'search') {
+    // 当切换回搜索 tab 时，恢复搜索状态
+    // 如果是从详情页返回（oldTab 是 note-detail 或 qa-detail），不强制重新搜索
+    // 因为 keep-alive 会保留搜索结果，用户希望看到之前的状态
+    const fromDetail = oldTab === 'note-detail' || oldTab === 'qa-detail'
+    // 从详情页返回时，如果关键词和搜索类型没有变化，就不重新搜索，保留之前的结果
+    if (fromDetail && searchResults.value.length > 0) {
+      const keywordMatch = searchQuery.value === route.query.keyword
+      const typeMatch = searchType.value === (route.query.searchType || 'notes')
+      if (keywordMatch && typeMatch) {
+        // 关键词和类型都匹配，不需要重新搜索，只恢复状态
+        restoreSearchState(false)
+        return
+      }
+    }
+    restoreSearchState(fromDetail)
+  }
+}, { immediate: false })
+
+// 组件挂载时，如果有初始关键词则执行搜索
+onMounted(() => {
+  // 组件挂载时总是执行恢复，确保状态正确
+  restoreSearchState(true)
 })
 </script>
 

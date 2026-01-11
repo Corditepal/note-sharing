@@ -146,6 +146,16 @@
         </div>
       </div>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :redirect-to="toastRedirect"
+      :duration="toastDuration"
+      @close="hideMessage"
+    />
   </div>
 </template>
 
@@ -157,6 +167,8 @@ import { useUserStore } from '@/stores/user'
 import request from '@/api/request'
 import Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
+import MessageToast from '@/components/MessageToast.vue'
+import { useMessage } from '@/utils/message'
 
 const router = useRouter()
 const API_BASE_URL = '/auth'
@@ -164,6 +176,9 @@ const API_BASE_URL = '/auth'
 // --- Pinia 整合 ---
 const userStore = useUserStore()
 const { userInfo, isLoggedIn } = storeToRefs(userStore)
+
+// --- 消息提示 ---
+const { showToast, toastMessage, toastType, toastRedirect, toastDuration, showSuccess, showError, showInfo, hideMessage } = useMessage()
 
 // --- 本地状态 ---
 const showChangePasswordDialog = ref(false)
@@ -287,13 +302,14 @@ const sendResetCode = async () => {
   try {
     const res = await request.post(`${API_BASE_URL}/password/send-code`, { email: email });
 
-    alert(res.message || '验证码已发送到您的邮箱。');
+    showSuccess(res.message || '验证码已发送到您的邮箱。');
     startCountdown();
 
   } catch (error) {
     // 假设 request 库在错误时抛出包含后端错误信息的对象
     const errorMessage = error.response?.data?.error || error.response?.data?.message || '验证码发送失败，请稍后重试。';
     passwordError.value = errorMessage;
+    showError(errorMessage);
     codeCountdown.value = 0;
     isSendingCode.value = false;
   }
@@ -336,9 +352,12 @@ const handleResetPassword = async () => {
 
     const res = await request.post(`${API_BASE_URL}/password/reset`, payload);
 
-    alert(res.message || '密码重置成功，请使用新密码重新登录！');
+    showSuccess(res.message || '密码重置成功，请使用新密码重新登录！', '/login');
     closePasswordDialog();
-    confirmLogout();
+    // 延迟执行登出，让消息提示先显示
+    setTimeout(() => {
+      confirmLogout();
+    }, 500);
 
   } catch (error) {
     const errorMessage = error.response?.data?.error || error.response?.data?.message || '重置密码失败,请稍后重试。';
@@ -384,14 +403,14 @@ const handleFileSelect = async (event) => {
 
   // 验证文件类型
   if (!file.type.startsWith('image/')) {
-    alert('只能上传图片文件')
+    showError('只能上传图片文件')
     return
   }
 
   // 验证文件大小（5MB）
   const maxSize = 5 * 1024 * 1024
   if (file.size > maxSize) {
-    alert('图片大小不能超过5MB')
+    showError('图片大小不能超过5MB')
     return
   }
 
@@ -439,7 +458,7 @@ const closeCropDialog = () => {
 // 确认裁剪并上传
 const confirmCrop = async () => {
   if (!cropperInstance.value) {
-    alert('裁剪器未准备好')
+    showError('裁剪器未准备好')
     return
   }
 
@@ -453,14 +472,14 @@ const confirmCrop = async () => {
     })
 
     if (!canvas) {
-      alert('裁剪失败，请重试')
+      showError('裁剪失败，请重试')
       return
     }
 
     // 将Canvas转换为Blob
     canvas.toBlob(async (blob) => {
       if (!blob) {
-        alert('图片转换失败')
+        showError('图片转换失败')
         return
       }
 
@@ -509,12 +528,12 @@ const confirmCrop = async () => {
             previewAvatarUrl.value = null
           }
           
-          alert('头像上传成功，页面将刷新')
+          showSuccess('头像上传成功，页面将刷新')
           
           // 刷新页面以确保头像正常显示
           setTimeout(() => {
             window.location.reload()
-          }, 500)
+          }, 2000)
         } else {
           console.error('响应中没有找到avatarUrl:', res.data)
           // 清除预览URL
@@ -522,7 +541,7 @@ const confirmCrop = async () => {
             URL.revokeObjectURL(previewAvatarUrl.value)
             previewAvatarUrl.value = null
           }
-          alert('头像上传失败：响应中没有找到头像URL')
+          showError('头像上传失败：响应中没有找到头像URL')
         }
       } catch (error) {
         console.error('上传头像失败:', error)
@@ -532,7 +551,7 @@ const confirmCrop = async () => {
           previewAvatarUrl.value = null
         }
         const errorMessage = error.response?.data?.error || '上传头像失败，请稍后重试'
-        alert(errorMessage)
+        showError(errorMessage)
       } finally {
         isUploadingAvatar.value = false
         // 清空文件输入
@@ -544,7 +563,7 @@ const confirmCrop = async () => {
 
   } catch (error) {
     console.error('裁剪失败:', error)
-    alert('裁剪失败，请重试')
+    showError('裁剪失败，请重试')
   }
 }
 

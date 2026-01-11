@@ -28,6 +28,16 @@
       <router-link to="/register">没有账号？注册</router-link>
       <router-link to="/forgot-password">忘记密码？</router-link>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :redirect-to="toastRedirect"
+      :duration="2000"
+      @close="showToast = false"
+    />
   </div>
 </template>
 
@@ -35,6 +45,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import api from "../api/request";
+import MessageToast from "./MessageToast.vue";
 
 // 输入框数据
 const email = ref("");
@@ -44,10 +55,24 @@ const password = ref("");
 
 const router = useRouter();
 
+// 消息提示相关
+const showToast = ref(false);
+const toastMessage = ref("");
+const toastType = ref("success");
+const toastRedirect = ref(null);
+
+// 显示消息提示
+const showMessage = (message, type = "success", redirectTo = null) => {
+  toastMessage.value = message;
+  toastType.value = type;
+  toastRedirect.value = redirectTo;
+  showToast.value = true;
+};
+
 // 登录方法
 const login = async () => {
   if (!email.value || !studentNumber.value || !username.value || !password.value) {
-    alert("请填写完整信息！");
+    showMessage("请填写完整信息！", "error");
     return;
   }
 
@@ -59,17 +84,16 @@ const login = async () => {
       password: password.value
     });
 
-    alert("登录成功！");
     console.log(res.data);
 
     // 假设后端返回 token：{ token: "xxxx" }
     localStorage.setItem("token", res.data.token);
 
-    // 跳转到用户页面
-    router.push("/main");
+    // 显示成功消息并自动跳转
+    showMessage("登录成功！", "success", "/main");
 
   } catch (e) {
-    alert("登录失败：" + (e.response?.data?.error || e.message));
+    showMessage("登录失败：" + (e.response?.data?.error || e.message), "error");
   }
 };
 </script>

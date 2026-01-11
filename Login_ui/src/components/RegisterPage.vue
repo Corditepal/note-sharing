@@ -46,6 +46,17 @@
     <div class="links">
       <router-link to="/login">已有账号？去登录</router-link>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :redirect-to="toastRedirect"
+      :duration="toastRedirect ? 2000 : 1500"
+      :auto-close="true"
+      @close="showToast = false"
+    />
   </div>
 </template>
 
@@ -53,6 +64,7 @@
 import { ref, computed, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import api from "../api/request";
+import MessageToast from "./MessageToast.vue";
 
 const router = useRouter();
 
@@ -68,6 +80,20 @@ const countdown = ref(0);
 const isSending = ref(false);
 let timer = null;
 
+// 消息提示相关
+const showToast = ref(false);
+const toastMessage = ref("");
+const toastType = ref("success");
+const toastRedirect = ref(null);
+
+// 显示消息提示
+const showMessage = (message, type = "success", redirectTo = null) => {
+  toastMessage.value = message;
+  toastType.value = type;
+  toastRedirect.value = redirectTo;
+  showToast.value = true;
+};
+
 const isCodeButtonDisabled = computed(() => countdown.value > 0 || isSending.value || !email.value);
 const codeButtonText = computed(() => {
   if (isSending.value) return "发送中...";
@@ -76,11 +102,14 @@ const codeButtonText = computed(() => {
 });
 
 const sendCode = async () => {
-  if (!email.value) return alert("请输入邮箱！");
+  if (!email.value) {
+    showMessage("请输入邮箱！", "error");
+    return;
+  }
   isSending.value = true;
   try {
     await api.post("/auth/register/send-code", { email: email.value });
-    alert("验证码已发送到邮箱");
+    showMessage("验证码已发送到邮箱", "success");
     countdown.value = 60;
     timer = setInterval(() => {
       countdown.value--;
@@ -90,7 +119,7 @@ const sendCode = async () => {
       }
     }, 1000);
   } catch (e) {
-    alert("发送失败：" + (e.response?.data?.error || e.message));
+    showMessage("发送失败：" + (e.response?.data?.error || e.message), "error");
   } finally {
     isSending.value = false;
   }
@@ -98,9 +127,13 @@ const sendCode = async () => {
 
 const register = async () => {
   if (!username.value || !email.value || !studentNumber.value || !password.value || !verificationCode.value) {
-    return alert("请填写完整信息！");
+    showMessage("请填写完整信息！", "error");
+    return;
   }
-  if (password.value !== confirmPassword.value) return alert("两次密码不一致！");
+  if (password.value !== confirmPassword.value) {
+    showMessage("两次密码不一致！", "error");
+    return;
+  }
   try {
     await api.post("/auth/register", {
       username: username.value,
@@ -109,10 +142,9 @@ const register = async () => {
       password: password.value,
       code: verificationCode.value,
     });
-    alert("注册成功！");
-    router.push("/login");
+    showMessage("注册成功！", "success", "/login");
   } catch (e) {
-    alert("注册失败：" + (e.response?.data?.error || e.message));
+    showMessage("注册失败：" + (e.response?.data?.error || e.message), "error");
   }
 };
 

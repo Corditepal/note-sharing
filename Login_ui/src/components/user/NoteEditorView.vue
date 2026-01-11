@@ -322,6 +322,15 @@
         style="display:none"
         @change="handleFileUpload"
     />
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :duration="toastDuration"
+      @close="hideMessage"
+    />
   </div>
 </template>
 
@@ -357,6 +366,9 @@ import {
   publishNote
 } from '@/api/note'; // 确保路径正确
 
+import MessageToast from '@/components/MessageToast.vue'
+import { useMessage } from '@/utils/message'
+
 // ----------------- Props & Emits -----------------
 const props = defineProps({
   spaceId: Number,
@@ -383,6 +395,9 @@ const fileInput = ref(null);
 const uploadFileInput = ref(null);
 const isLoading = ref(false);
 const renameInputRef = ref(null);
+
+// 消息提示
+const { showToast, toastMessage, toastType, toastDuration, showSuccess, showError, showInfo, hideMessage } = useMessage()
 
 // 1. 初始化 Markdown 解析器 (MD -> HTML)
 const mdParser = new MarkdownIt({
@@ -524,14 +539,14 @@ const editor = useEditor({
         if (file && file.size > 0) {
           // 确保编辑器存在且当前笔记类型正确
           if (currentNoteType.value !== 'md') {
-            alert('请先选择一个富文本笔记进行编辑。')
+            showError('请先选择一个富文本笔记进行编辑。')
             return true
           }
           
           // 异步处理图片上传和插入
           handlePastedImage(file).catch(error => {
             console.error('粘贴图片失败:', error)
-            alert('图片粘贴失败：' + (error.message || '请稍后重试'))
+            showError('图片粘贴失败：' + (error.message || '请稍后重试'))
           })
           
           return true // 阻止默认粘贴行为
@@ -613,10 +628,10 @@ const saveNoteContent = async () => {
       }
     }
 
-    alert('笔记内容保存成功！');
+    showSuccess('笔记内容保存成功！');
 
   } catch (error) {
-    alert('保存笔记失败，请稍后重试。');
+    showError('保存笔记失败，请稍后重试。');
     console.error('Error saving note content:', error);
   }
 };
@@ -626,7 +641,7 @@ const saveNoteContent = async () => {
  */
 const handlePublishNote = async () => {
   if (!currentNote.value) {
-    alert('请先选择一个笔记！');
+    showError('请先选择一个笔记！');
     return;
   }
 
@@ -645,7 +660,7 @@ const handlePublishNote = async () => {
     if (currentNoteType.value === 'md') {
       // 富文本笔记：获取HTML内容并转换为Markdown
       if (!editor.value) {
-        alert('编辑器未初始化，无法发布。');
+        showError('编辑器未初始化，无法发布。');
         return;
       }
 
@@ -666,7 +681,7 @@ const handlePublishNote = async () => {
       };
     } else {
       // PDF或其他文件类型：需要获取文件
-      alert('文件类型笔记的发布功能需要先上传文件，请使用更新功能。');
+      showError('文件类型笔记的发布功能需要先上传文件，请使用更新功能。');
       isLoading.value = false;
       return;
     }
@@ -685,11 +700,11 @@ const handlePublishNote = async () => {
         Object.assign(noteInList, publishedVo);
       }
 
-      alert('笔记发布成功！');
+      showSuccess('笔记发布成功！');
     }
 
   } catch (error) {
-    alert('发布笔记失败：' + (error.response?.data?.message || error.message || '请稍后重试。'));
+    showError('发布笔记失败：' + (error.response?.data?.message || error.message || '请稍后重试。'));
     console.error('Error publishing note:', error);
   } finally {
     isLoading.value = false;
@@ -734,7 +749,7 @@ const fetchNotes = async (sortBy = 'updatedAt') => {
     }
   } catch (error) {
     console.error('Failed to fetch notes:', error);
-    alert('获取笔记列表失败，请稍后重试。'+ props.notebookId);
+    showError('获取笔记列表失败，请稍后重试。');
   } finally {
     isLoading.value = false;
   }
@@ -985,7 +1000,7 @@ const selectNote = async (note) => {
     }
   } catch (error) {
     console.error('Failed to load note content:', error);
-    alert('加载笔记内容失败，请检查文件链接。');
+    showError('加载笔记内容失败，请检查文件链接。');
     // 如果加载失败，清空编辑器/预览区
     editor.value?.commands.setContent('', false);
   }
@@ -1016,7 +1031,7 @@ const handleAction = async (action, noteId) => {
           currentNote.value.updatedAt = updateResult.updatedAt;
         }
 
-        alert(`笔记已重命名为 "${newTitle}"`);
+        showSuccess(`笔记已重命名为 "${newTitle}"`);
       }
     } else if (action === '移动到') {
       const targetNotebookId = await showMoveToDialog(noteId, note.title, props.notebookList);
@@ -1034,12 +1049,12 @@ const handleAction = async (action, noteId) => {
           if (noteList.value.length > 0) selectNote(noteList.value[0]);
         }
 
-        alert(`笔记 "${note.title}" 已成功移动到目标笔记本。`);
+        showSuccess(`笔记 "${note.title}" 已成功移动到目标笔记本。`);
       }
     } else if (action === '下载') {
       const fileName = note.filename;
       if (!fileName) {
-        alert(`笔记 "${note.title}" 缺少文件名信息，无法下载。`);
+        showError(`笔记 "${note.title}" 缺少文件名信息，无法下载。`);
         return;
       }
 
@@ -1090,7 +1105,7 @@ const handleAction = async (action, noteId) => {
 
       } catch (error) {
         console.error('下载出错:', error);
-        alert('下载失败，可能是跨域限制或网络问题，请检查控制台。');
+        showError('下载失败，可能是跨域限制或网络问题，请检查控制台。');
       }
     } else if (action === '删除') {
       // **调用自定义弹窗，并等待 Promise 结果**
@@ -1113,7 +1128,7 @@ const handleAction = async (action, noteId) => {
       }
     }
   } catch (error) {
-    alert(`${action}操作失败，请稍后重试。`);
+    showError(`${action}操作失败，请稍后重试。`);
     console.error(`Error during ${action}:`, error);
   }
 };
@@ -1121,7 +1136,7 @@ const handleAction = async (action, noteId) => {
 const handleNewNoteFromModal = async () => {
   const title = newNoteTitle.value.trim();
   if (!title) {
-    alert('笔记名不能为空！');
+    showError('笔记名不能为空！');
     return;
   }
   const type = newNoteType.value === 'online' ? 'md' : 'pdf';
@@ -1148,7 +1163,7 @@ const handleNewNoteFromModal = async () => {
       noteList.value.unshift(newNote); // 在列表前插入新笔记
       selectNote(newNote); // 选中新笔记
       newNoteTitle.value = '新建笔记'; // 重置
-      alert(`富文本笔记 "${title}" 创建成功。`);
+      showSuccess(`富文本笔记 "${title}" 创建成功。`);
 
     } else if (type === 'pdf') {
       // 【API调用点 H】: 触发文件上传
@@ -1156,7 +1171,7 @@ const handleNewNoteFromModal = async () => {
       uploadFileInput.value.click();
     }
   } catch (error) {
-    alert('创建笔记失败。');
+    showError('创建笔记失败。');
     console.error('Error creating new note:', error);
   }
 };
@@ -1189,7 +1204,7 @@ const handleFileUpload = async (e) => {
     newNoteTitle.value = fileNote.title;
 
   } catch (error) {
-    alert('文件上传和笔记创建失败。');
+    showError('文件上传和笔记创建失败。');
     console.error('Error uploading file/creating note:', error);
   }
 };
@@ -1215,7 +1230,7 @@ const triggerImageUpload = () => {
   if (currentNoteType.value === 'md') {
     fileInput.value.click();
   } else {
-    alert('请先选择一个富文本笔记进行编辑。');
+    showError('请先选择一个富文本笔记进行编辑。');
   }
   closeAllDropdowns();
 };
@@ -1239,7 +1254,7 @@ const handlePastedImage = async (file) => {
   
   if (!editor.value) {
     console.warn('编辑器未初始化')
-    alert('编辑器未准备好，请稍后再试')
+    showError('编辑器未准备好，请稍后再试')
     return;
   }
   
@@ -1353,7 +1368,7 @@ const insertImage = async (file) => {
       
   } catch (error) {
     console.error('Error uploading image:', error);
-    alert('图片上传失败：' + (error.message || '请稍后重试'));
+    showError('图片上传失败：' + (error.message || '请稍后重试'));
     throw error; // 重新抛出错误以便调用者处理
   }
 };

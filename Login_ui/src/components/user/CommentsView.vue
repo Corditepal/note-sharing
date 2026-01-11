@@ -116,6 +116,15 @@
         </div>
       </section>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :duration="toastDuration"
+      @close="hideMessage"
+    />
   </div>
 </template>
 
@@ -124,8 +133,13 @@ import { ref, onMounted } from 'vue'
 import { deleteRemark } from '@/api/remark'
 import { useUserStore } from '@/stores/user'
 import { formatTime } from '@/utils/time'
+import MessageToast from '@/components/MessageToast.vue'
+import { useMessage } from '@/utils/message'
 
 const userStore = useUserStore()
+
+// 消息提示
+const { showToast, toastMessage, toastType, toastDuration, showSuccess, showError, hideMessage } = useMessage()
 
 /**
  * 注意：后端目前没有直接获取用户评论列表的接口
@@ -187,10 +201,10 @@ const handleDelete = async (type, commentId) => {
       sentComments.value = sentComments.value.filter((item) => item._id !== commentId)
     }
     
-    alert('删除成功')
+    showSuccess('删除成功')
   } catch (err) {
     console.error('删除评论失败:', err)
-    alert('删除失败，请稍后重试')
+    showError('删除失败，请稍后重试')
   }
 }
 

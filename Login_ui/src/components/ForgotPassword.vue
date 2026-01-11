@@ -40,12 +40,24 @@
     <div class="links">
       <router-link to="/login">返回登录</router-link>
     </div>
+
+    <!-- 消息提示组件 -->
+    <MessageToast
+      v-if="showToast"
+      :message="toastMessage"
+      :type="toastType"
+      :redirect-to="toastRedirect"
+      :duration="toastRedirect ? 2000 : 1500"
+      :auto-close="true"
+      @close="showToast = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onUnmounted } from "vue";
 import api from "../api/request";
+import MessageToast from "./MessageToast.vue";
 
 // 输入框数据
 const email = ref("");
@@ -58,6 +70,20 @@ const countdown = ref(0);
 const isSending = ref(false);
 let timer = null;
 
+// 消息提示相关
+const showToast = ref(false);
+const toastMessage = ref("");
+const toastType = ref("success");
+const toastRedirect = ref(null);
+
+// 显示消息提示
+const showMessage = (message, type = "success", redirectTo = null) => {
+  toastMessage.value = message;
+  toastType.value = type;
+  toastRedirect.value = redirectTo;
+  showToast.value = true;
+};
+
 const isCodeButtonDisabled = computed(() => countdown.value > 0 || isSending.value || !email.value);
 const codeButtonText = computed(() => {
   if (isSending.value) return "发送中...";
@@ -67,11 +93,14 @@ const codeButtonText = computed(() => {
 
 // 发送验证码
 const sendCode = async () => {
-  if (!email.value) return alert("请输入邮箱！");
+  if (!email.value) {
+    showMessage("请输入邮箱！", "error");
+    return;
+  }
   isSending.value = true;
   try {
     await api.post("/auth/password/send-code", { email: email.value });
-    alert("验证码已发送，请去邮箱查看");
+    showMessage("验证码已发送，请去邮箱查看", "success");
 
     countdown.value = 60;
     timer = setInterval(() => {
@@ -82,7 +111,7 @@ const sendCode = async () => {
       }
     }, 1000);
   } catch (e) {
-    alert("发送失败：" + (e.response?.data?.error || e.message));
+    showMessage("发送失败：" + (e.response?.data?.error || e.message), "error");
   } finally {
     isSending.value = false;
   }
@@ -91,10 +120,12 @@ const sendCode = async () => {
 // 重置密码
 const resetPassword = async () => {
   if (!email.value || !code.value || !newPassword.value) {
-    return alert("请填写完整信息！");
+    showMessage("请填写完整信息！", "error");
+    return;
   }
   if (newPassword.value !== confirmPassword.value) {
-    return alert("两次密码不一致！");
+    showMessage("两次密码不一致！", "error");
+    return;
   }
 
   try {
@@ -104,14 +135,15 @@ const resetPassword = async () => {
       code: code.value  // 改为 code 与后端匹配
     });
 
-    alert("密码重置成功！");
+    // 显示成功消息并自动跳转到登录页
+    showMessage("密码重置成功！", "success", "/login");
     // 重置输入框
     email.value = "";
     code.value = "";
     newPassword.value = "";
     confirmPassword.value = "";
   } catch (e) {
-    alert("重置失败：" + (e.response?.data?.error || e.message));
+    showMessage("重置失败：" + (e.response?.data?.error || e.message), "error");
   }
 };
 

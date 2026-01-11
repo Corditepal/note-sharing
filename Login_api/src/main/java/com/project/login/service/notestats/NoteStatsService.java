@@ -89,18 +89,22 @@ public class NoteStatsService {
     }
 
     /**
-     * 写入 Redis
+     * 写入 Redis（安全版，Hash 的 value 全部转为 String）
      */
     private void writeStatsToRedis(String key, HashOperations<String, Object, Object> ops, NoteStatsDO db) {
+        // 将所有字段值统一转成 String，保证 StringRedisSerializer 不会报错
         ops.put(key, "authorName", db.getAuthorName());
-        ops.put(key, "views", db.getViews());
-        ops.put(key, "likes", db.getLikes());
-        ops.put(key, "favorites", db.getFavorites());
-        ops.put(key, "comments", db.getComments());
+        ops.put(key, "views", String.valueOf(db.getViews()));
+        ops.put(key, "likes", String.valueOf(db.getLikes()));
+        ops.put(key, "favorites", String.valueOf(db.getFavorites()));
+        ops.put(key, "comments", String.valueOf(db.getComments()));
         ops.put(key, "last_activity_at", db.getLastActivityAt().toString());
-        ops.put(key, "version", db.getVersion());
+        ops.put(key, "version", String.valueOf(db.getVersion()));
+
+        // 设置过期时间
         redisTemplate.expire(key, 7, TimeUnit.DAYS);
     }
+
 
     /**
      * 获取 Redis 状态
