@@ -266,6 +266,7 @@ const showNotificationPanel = ref(false)
 const notificationUnreadTotal = ref(0)
 const notifications = ref([])
 const notificationUserInfoMap = ref({}) // {actorId: { username, avatarUrl }}
+let notificationTimer = null
 
 const refreshPrivateMessageUnread = async () => {
   if (!currentUserId.value) {
@@ -966,11 +967,18 @@ onMounted(async () => {
 
   // 初始化私信未读数
   await refreshPrivateMessageUnread()
+  // 初始化系统通知未读数
+  await refreshNotificationUnread()
 
-  // 周期性刷新未读数（即使未打开私信中心，也能收到新消息提示）
+  // 周期性刷新私信未读数（即使未打开私信中心，也能收到新消息提示）
   privateMessageTimer = setInterval(() => {
     refreshPrivateMessageUnread()
   }, 10000) // 每 10 秒刷新一次
+
+  // 周期性刷新通知未读数（无需点开消息面板也会更新小红点）
+  notificationTimer = setInterval(() => {
+    refreshNotificationUnread()
+  }, 10000)
   
   // 恢复搜索关键词
   if (route.query.keyword) {
@@ -992,6 +1000,10 @@ onBeforeUnmount(() => {
   if (privateMessageTimer) {
     clearInterval(privateMessageTimer)
     privateMessageTimer = null
+  }
+  if (notificationTimer) {
+    clearInterval(notificationTimer)
+    notificationTimer = null
   }
 })
 
