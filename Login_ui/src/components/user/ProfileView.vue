@@ -35,7 +35,12 @@
         <div class="info-section">
           <div class="info-item">
             <label>用户名</label>
-            <div class="info-value">{{ userInfo.username || 'N/A' }}</div>
+            <div class="info-value-with-action">
+              <div class="info-value">{{ userInfo.username || 'N/A' }}</div>
+              <button class="edit-button" @click="showChangeUsernameDialog = true" title="修改用户名">
+                <span>编辑</span>
+              </button>
+            </div>
           </div>
 
           <div class="info-item">
@@ -52,6 +57,10 @@
         </div>
 
         <div class="actions-section">
+          <button class="text-action" @click="goToFollowList">
+            <span>我的关注</span>
+            <span class="action-indicator" aria-hidden="true">↗</span>
+          </button>
           <button class="text-action" @click="showChangePasswordDialog = true">
             <span>重置密码</span>
             <span class="action-indicator" aria-hidden="true">↗</span>
@@ -59,6 +68,34 @@
           <button class="text-action danger" @click="handleLogout">
             <span>退出登录</span>
             <span class="action-indicator" aria-hidden="true">↗</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showChangeUsernameDialog" class="modal" @click.self="closeUsernameDialog">
+      <div class="modal-content">
+        <h3>修改用户名</h3>
+        <p>请输入新的用户名</p>
+
+        <div class="form-group">
+          <label>新用户名</label>
+          <input
+              v-model="usernameForm.newUsername"
+              type="text"
+              placeholder="请输入新用户名"
+              maxlength="50"
+          />
+        </div>
+
+        <div v-if="usernameError" class="error-message">
+          {{ usernameError }}
+        </div>
+
+        <div class="modal-actions">
+          <button @click="closeUsernameDialog">取消</button>
+          <button class="primary" @click="handleUpdateUsername" :disabled="isUpdatingUsername">
+            {{ isUpdatingUsername ? '更新中...' : '确认修改' }}
           </button>
         </div>
       </div>
@@ -182,8 +219,11 @@ const { showToast, toastMessage, toastType, toastRedirect, toastDuration, showSu
 
 // --- 本地状态 ---
 const showChangePasswordDialog = ref(false)
+const showChangeUsernameDialog = ref(false)
 const showLogoutDialog = ref(false)
 const passwordError = ref('')
+const usernameError = ref('')
+const isUpdatingUsername = ref(false)
 const fileInputRef = ref(null)
 const isUploadingAvatar = ref(false)
 const previewAvatarUrl = ref(null) // 上传前的预览URL
@@ -196,6 +236,10 @@ const passwordForm = ref({
   code: '',
   newPassword: '',
   confirmPassword: ''
+})
+
+const usernameForm = ref({
+  newUsername: ''
 })
 
 // 验证码发送相关状态
@@ -376,7 +420,64 @@ const closePasswordDialog = () => {
 }
 
 // ------------------------------------
-// 4. 退出登录逻辑
+// 4. 修改用户名逻辑
+// ------------------------------------
+
+const handleUpdateUsername = async () => {
+  usernameError.value = ''
+  const { newUsername } = usernameForm.value
+
+  // 1. 表单验证
+  if (!newUsername || !newUsername.trim()) {
+    usernameError.value = '用户名不能为空'
+    return
+  }
+
+  const trimmedUsername = newUsername.trim()
+  if (trimmedUsername.length > 50) {
+    usernameError.value = '用户名长度不能超过50个字符'
+    return
+  }
+
+  // 如果新用户名和当前用户名相同
+  if (trimmedUsername === userInfo.value.username) {
+    usernameError.value = '新用户名与当前用户名相同'
+    return
+  }
+
+  // 2. 调用后端接口
+  isUpdatingUsername.value = true
+  try {
+    const res = await request.put('/auth/username', {
+      username: trimmedUsername
+    })
+
+    showSuccess(res.data?.message || '用户名修改成功')
+    
+    // 更新store中的用户名
+    userInfo.value.username = trimmedUsername
+    
+    // 重新获取用户信息以确保数据同步
+    await loadUserInfo()
+    
+    closeUsernameDialog()
+  } catch (error) {
+    const errorMessage = error.response?.data?.error || error.response?.data?.message || '修改用户名失败，请稍后重试'
+    usernameError.value = errorMessage
+    showError(errorMessage)
+  } finally {
+    isUpdatingUsername.value = false
+  }
+}
+
+const closeUsernameDialog = () => {
+  showChangeUsernameDialog.value = false
+  usernameForm.value = { newUsername: '' }
+  usernameError.value = ''
+}
+
+// ------------------------------------
+// 5. 退出登录逻辑
 // ------------------------------------
 
 const handleLogout = () => {
@@ -387,6 +488,22 @@ const confirmLogout = () => {
   // 使用 Store Action 清除数据和 token
   userStore.clearUserData()
   router.push('/login')
+}
+
+// ------------------------------------
+// 7. 跳转到关注列表
+// ------------------------------------
+
+const goToFollowList = () => {
+  if (userInfo.value?.id) {
+    router.push({
+      path: '/main',
+      query: {
+        tab: 'follow-list',
+        userId: userInfo.value.id
+      }
+    })
+  }
 }
 
 // ------------------------------------
@@ -791,6 +908,32 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.info-value-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.edit-button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft, #e8ecec);
+  background: var(--surface-muted, #f8faf9);
+  font-size: 13px;
+  color: var(--text-secondary, #4b5563);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.edit-button:hover,
+.edit-button:focus-visible {
+  color: var(--brand-primary, #22ee99);
+  border-color: var(--brand-primary, #22ee99);
+  background: #fff;
+}
+
 .info-note {
   margin: -8px 0 0;
   font-size: 13px;
@@ -958,6 +1101,11 @@ onMounted(() => {
 .modal-actions button.primary.danger:focus-visible {
   background: rgba(198, 83, 76, 0.18);
   border-color: var(--text-danger, #c6534c);
+}
+
+.modal-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {

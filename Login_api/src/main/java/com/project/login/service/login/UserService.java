@@ -90,6 +90,38 @@ public class UserService {
         return avatarUrl;
     }
 
+    // ----------------- 根据用户名获取用户信息 -----------------
+    public UserEntity getUserByUsername(String username) {
+        return userMapper.selectByUsername(username);
+    }
+
+    // ----------------- 更新用户名 -----------------
+    public void updateUsername(Long userId, String newUsername) {
+        // 1. 验证用户存在
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+        // 2. 如果新用户名和当前用户名相同，直接返回
+        if (user.getUsername().equals(newUsername)) {
+            return;
+        }
+
+        // 3. 检查新用户名是否已被其他用户使用
+        if (userRepository.existsByUsername(newUsername)) {
+            throw new RuntimeException("用户名已被使用");
+        }
+
+        // 4. 验证用户名格式（长度限制）
+        if (newUsername == null || newUsername.trim().isEmpty()) {
+            throw new RuntimeException("用户名不能为空");
+        }
+        if (newUsername.length() > 50) {
+            throw new RuntimeException("用户名长度不能超过50个字符");
+        }
+
+        // 5. 更新用户名
+        userMapper.updateUsername(userId, newUsername.trim());
+    }
 
 }
 

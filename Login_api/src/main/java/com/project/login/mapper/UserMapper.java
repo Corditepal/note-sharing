@@ -47,4 +47,10 @@ public interface UserMapper {
             "    updated_at = CURRENT_TIMESTAMP " +
             "WHERE id = #{userId}")
     void updateAvatarUrl(@Param("userId") Long userId, @Param("avatarUrl") String avatarUrl);
+
+    @Update("UPDATE users " +
+            "SET username = #{username}, " +
+            "    updated_at = CURRENT_TIMESTAMP " +
+            "WHERE id = #{userId}")
+    void updateUsername(@Param("userId") Long userId, @Param("username") String username);
 }

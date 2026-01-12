@@ -136,4 +136,67 @@ public class AuthenticationController {
         }
     }
 
+    // --- 8) 根据用户名获取用户信息 ---
+    @Operation(summary = "Get user info by username")
+    @GetMapping("/user/by-username")
+    public ResponseEntity<?> getUserByUsername(
+            @RequestParam String username
+    ) {
+        try {
+            UserEntity user = userService.getUserByUsername(username);
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("error", "用户不存在"));
+            }
+
+            Map<String, Object> result = Map.of(
+                    "id", user.getId(),
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
+                    "studentNumber", user.getStudentNumber() == null ? "" : user.getStudentNumber(),
+                    "avatarUrl", user.getAvatarUrl() == null ? "" : user.getAvatarUrl()
+            );
+
+            return ResponseEntity.ok(result);
+
+        } catch (Exception e) {
+            log.error("获取用户信息失败", e);
+            return ResponseEntity.status(500).body(Map.of("error", "获取用户信息失败"));
+        }
+    }
+
+    // --- 9) 更新用户名 ---
+    @Operation(summary = "Update username")
+    @PutMapping("/username")
+    public ResponseEntity<?> updateUsername(
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestBody Map<String, String> request
+    ) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(401).body(Map.of("error", "用户未登录或 Token 格式错误"));
+        }
+
+        String token = authorizationHeader.substring(7);
+        String newUsername = request.get("username");
+
+        if (newUsername == null || newUsername.trim().isEmpty()) {
+            return ResponseEntity.status(400).body(Map.of("error", "用户名不能为空"));
+        }
+
+        try {
+            UserEntity user = authService.getUserByToken(token);
+            if (user == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Token 无效或已过期"));
+            }
+
+            userService.updateUsername(user.getId(), newUsername);
+            return ResponseEntity.ok(Map.of("message", "用户名修改成功"));
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(400).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("更新用户名失败", e);
+            return ResponseEntity.status(500).body(Map.of("error", "更新用户名失败，请稍后重试"));
+        }
+    }
+
 }

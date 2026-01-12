@@ -115,6 +115,9 @@
           @stats-updated="handleStatsUpdated"
         />
       </section>
+      <section v-else-if="currentTab === 'follow' && currentUserId">
+        <FollowListView :userId="Number(currentUserId)" />
+      </section>
       <section v-else-if="currentTab === 'circle'">
         <QACircleView ref="qaRef" />
       </section>
@@ -137,6 +140,9 @@
       <section v-else-if="currentTab === 'comments'">
         <CommentsView />
       </section>
+      <section v-else-if="currentTab === 'follow-list' && route.query.userId">
+        <FollowListView :userId="Number(route.query.userId)" />
+      </section>
       <section v-else>
         <ProfileView />
       </section>
@@ -157,6 +163,7 @@ import HotView from '../components/user/HotView.vue'
 import RecommendView from '../components/user/RecommendView.vue'
 import QACircleView from '../components/user/QACircleView.vue'
 import QADetailView from '../components/user/QADetailView.vue'
+import FollowListView from '../components/user/FollowListView.vue'
 import { useRouter, useRoute } from 'vue-router'
 import service from '../api/request'
 import { useUserStore } from '@/stores/user'
@@ -172,6 +179,9 @@ const BASE_PATH = "/noting"
 const userAvatarUrl = computed(() => {
   return userInfo.value.avatarUrl || '/assets/avatars/avatar.png'
 })
+
+// 当前用户ID
+const currentUserId = computed(() => userInfo.value?.id)
 
 const tabs = [
   { value: 'follow', label: '关注', desc: 'Follow' },
@@ -197,7 +207,7 @@ const selectedWorkspaceId = ref(null) // 当前选中的笔记空间ID（在work
 const getTabFromRoute = () => {
   const tabFromQuery = route.query.tab
   // 验证 tab 值是否有效（包括search tab和note-detail tab）
-  const validTabs = [...tabs.map(t => t.value), 'search', 'profile', 'note-detail']
+  const validTabs = [...tabs.map(t => t.value), 'search', 'profile', 'note-detail', 'follow-list']
   if (tabFromQuery && validTabs.includes(tabFromQuery)) {
     return tabFromQuery
   }
@@ -329,7 +339,7 @@ const restoreWorkspaceFromRoute = () => {
 watch(() => route.query.tab, (newTab, oldTab) => {
   console.log('[MainView] 路由 tab 变化:', oldTab, '->', newTab, '当前 currentTab:', currentTab.value, '完整 query:', JSON.stringify(route.query))
   if (newTab) {
-    const validTabs = [...tabs.map(t => t.value), 'search', 'profile', 'note-detail', 'qa-detail']
+    const validTabs = [...tabs.map(t => t.value), 'search', 'profile', 'note-detail', 'qa-detail', 'follow-list']
     if (validTabs.includes(newTab)) {
       // 强制更新 currentTab，确保与 URL 同步
       if (currentTab.value !== newTab) {
