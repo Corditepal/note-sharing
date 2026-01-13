@@ -16,6 +16,8 @@ import com.project.login.service.sensitive.ModerationService;
 import com.project.login.service.sensitive.SensitiveWordService;
 import com.project.login.service.qa.QuestionService;
 import com.project.login.model.vo.qa.QuestionVO;
+import com.project.login.model.vo.qa.QACommentDetailVO;
+import com.project.login.model.vo.qa.CommentVO;
 import com.project.login.model.request.moderation.HandleModerationRequest;
 import com.project.login.model.request.moderation.SubmitModerationRequest;
 import com.project.login.model.request.moderation.ReviewNoteRequest;
@@ -215,6 +217,84 @@ public class AdminController {
     public StandardResponse<Void> adminDeleteQuestion(@PathVariable String questionId) {
         questionService.deleteQuestion(questionId);
         return StandardResponse.success("删除成功", null);
+    }
+
+    @Operation(summary = "统计回答总数")
+    @GetMapping("/answers/count")
+    public StandardResponse<Map<String, Long>> getAnswerCount() {
+        Long count = questionService.getAnswerCount();
+        
+        Map<String, Long> result = new HashMap<>();
+        result.put("answerCount", count);
+        
+        return StandardResponse.success("获取成功", result);
+    }
+
+    // ========== 问答评论管理 ==========
+    @Operation(summary = "统计问答评论总数（包括Comment和Reply）")
+    @GetMapping("/qa-comments/count")
+    public StandardResponse<Map<String, Long>> getQACommentCount() {
+        Long count = questionService.getQACommentCount();
+        
+        Map<String, Long> result = new HashMap<>();
+        result.put("qaCommentCount", count);
+        
+        return StandardResponse.success("获取成功", result);
+    }
+
+    @Operation(summary = "获取所有问答评论列表（包括Comment和Reply，按数据库顺序）")
+    @GetMapping("/qa-comments/list")
+    public StandardResponse<List<QACommentDetailVO>> getAllQAComments() {
+        List<QACommentDetailVO> comments = questionService.getAllQAComments();
+        return StandardResponse.success("获取成功", comments);
+    }
+
+    @Operation(summary = "管理员删除问答评论（可删除任何评论或回复）")
+    @DeleteMapping("/qa-comments/{type}/{id}")
+    public StandardResponse<Void> adminDeleteQAComment(
+            @PathVariable String type,
+            @PathVariable Long id,
+            @RequestParam String questionId,
+            @RequestParam Long answerId,
+            @RequestParam(required = false) Long commentId) {
+        if ("COMMENT".equals(type)) {
+            // 删除一级评论（会自动删除其下的所有回复）
+            questionService.deleteComment(questionId, answerId, id);
+        } else if ("REPLY".equals(type)) {
+            // 删除二级回复
+            if (commentId == null) {
+                return StandardResponse.error("删除回复需要提供commentId参数");
+            }
+            questionService.deleteReply(questionId, answerId, commentId, id);
+        } else {
+            return StandardResponse.error("无效的评论类型");
+        }
+        return StandardResponse.success("删除成功", null);
+    }
+
+    @Operation(summary = "获取问答评论树（用于查看评论结构）")
+    @GetMapping("/qa-comments/tree")
+    public StandardResponse<CommentVO> getQACommentTree(
+            @RequestParam String questionId,
+            @RequestParam Long answerId,
+            @RequestParam Long commentId) {
+        CommentVO tree = questionService.getCommentTree(questionId, answerId, commentId);
+        if (tree == null) {
+            return StandardResponse.error("评论不存在");
+        }
+        return StandardResponse.success("获取成功", tree);
+    }
+
+    @Operation(summary = "统计评论下的回复数量")
+    @GetMapping("/qa-comments/count-replies")
+    public StandardResponse<Map<String, Integer>> countCommentReplies(
+            @RequestParam String questionId,
+            @RequestParam Long answerId,
+            @RequestParam Long commentId) {
+        int count = questionService.countCommentReplies(questionId, answerId, commentId);
+        Map<String, Integer> result = new HashMap<>();
+        result.put("replyCount", count);
+        return StandardResponse.success("获取成功", result);
     }
 
     @Operation(summary = "检查纯文本敏感词")

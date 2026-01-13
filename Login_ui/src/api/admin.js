@@ -144,6 +144,51 @@ export const adminDeleteQuestion = async (questionId) => {
   return res.data
 }
 
+// 统计回答总数
+export const getAnswerCount = async () => {
+  const res = await request.get('/admin/answers/count')
+  return res.data
+}
+
+// ========== 问答评论管理 ==========
+// 统计问答评论总数（包括Comment和Reply）
+export const getQACommentCount = async () => {
+  const res = await request.get('/admin/qa-comments/count')
+  return res.data
+}
+
+// 获取所有问答评论列表（包括Comment和Reply）
+export const getQACommentList = async () => {
+  const res = await request.get('/admin/qa-comments/list')
+  return res.data
+}
+
+// 管理员删除问答评论（可删除任何评论或回复）
+export const adminDeleteQAComment = async (type, id, questionId, answerId, commentId) => {
+  const params = { questionId, answerId }
+  if (commentId) {
+    params.commentId = commentId
+  }
+  const res = await request.delete(`/admin/qa-comments/${type}/${id}`, { params })
+  return res.data
+}
+
+// 获取问答评论树（用于查看评论结构）
+export const getQACommentTree = async (questionId, answerId, commentId) => {
+  const res = await request.get('/admin/qa-comments/tree', {
+    params: { questionId, answerId, commentId }
+  })
+  return res.data
+}
+
+// 统计评论下的回复数量
+export const countCommentReplies = async (questionId, answerId, commentId) => {
+  const res = await request.get('/admin/qa-comments/count-replies', {
+    params: { questionId, answerId, commentId }
+  })
+  return res.data
+}
+
 // ========== 内容审查管理 ==========
 // 提交审查记录（标记笔记为审核中）
 export const submitModeration = async (noteId, checkResult) => {
