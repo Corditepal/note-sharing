@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -457,6 +459,27 @@ public class QuestionService {
         }
 
         return convert.toQuestionVO(q);
+    }
+
+    /** 统计问题总数（管理员用） */
+    public Long getQuestionCount() {
+        return repo.count();
+    }
+
+    /** 获取所有问题列表（管理员用） */
+    public List<QuestionVO> getAllQuestions() {
+        List<QuestionDO> doList = repo.findAll();
+        if (doList.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        List<QuestionVO> voList = new ArrayList<>();
+        for (QuestionDO q : doList) {
+            QuestionVO vo = convert.toQuestionVO(q);
+            voList.add(vo);
+        }
+        
+        return voList;
     }
 
 }

@@ -14,6 +14,8 @@ import com.project.login.service.sensitive.DeepFilterService;
 import com.project.login.service.sensitive.FastFilterService;
 import com.project.login.service.sensitive.ModerationService;
 import com.project.login.service.sensitive.SensitiveWordService;
+import com.project.login.service.qa.QuestionService;
+import com.project.login.model.vo.qa.QuestionVO;
 import com.project.login.model.request.moderation.HandleModerationRequest;
 import com.project.login.model.request.moderation.SubmitModerationRequest;
 import com.project.login.model.request.moderation.ReviewNoteRequest;
@@ -69,6 +71,7 @@ public class AdminController {
     private final FastFilterService fastFilterService;
     private final DeepFilterService deepFilterService;
     private final ModerationService moderationService;
+    private final QuestionService questionService;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final NoteSpaceMapper noteSpaceMapper;
@@ -186,6 +189,32 @@ public class AdminController {
         } else {
             return StandardResponse.error("删除失败");
         }
+    }
+
+    // ========== 问答管理 ==========
+    @Operation(summary = "统计问题总数")
+    @GetMapping("/questions/count")
+    public StandardResponse<Map<String, Long>> getQuestionCount() {
+        Long count = questionService.getQuestionCount();
+        
+        Map<String, Long> result = new HashMap<>();
+        result.put("questionCount", count);
+        
+        return StandardResponse.success("获取成功", result);
+    }
+
+    @Operation(summary = "获取所有问题列表（按数据库顺序）")
+    @GetMapping("/questions/list")
+    public StandardResponse<List<QuestionVO>> getAllQuestions() {
+        List<QuestionVO> questions = questionService.getAllQuestions();
+        return StandardResponse.success("获取成功", questions);
+    }
+
+    @Operation(summary = "管理员删除问题（可删除任何问题）")
+    @DeleteMapping("/questions/{questionId}")
+    public StandardResponse<Void> adminDeleteQuestion(@PathVariable String questionId) {
+        questionService.deleteQuestion(questionId);
+        return StandardResponse.success("删除成功", null);
     }
 
     @Operation(summary = "检查纯文本敏感词")

@@ -62,6 +62,9 @@
       <section v-else-if="currentTab === 'remarks'">
         <RemarkManagementView />
       </section>
+      <section v-else-if="currentTab === 'qa'">
+        <QAManagementView />
+      </section>
       <section v-else-if="currentTab === 'sensitive'">
         <SensitiveCheckView />
       </section>
@@ -86,6 +89,7 @@ import RemarkManagementView from '../components/admin/RemarkManagementView.vue'
 import SensitiveCheckView from '../components/admin/SensitiveCheckView.vue'
 import ModerationView from '../components/admin/ModerationView.vue'
 import DashboardView from '../components/admin/DashboardView.vue'
+import QAManagementView from '../components/admin/QAManagementView.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -103,6 +107,7 @@ const tabs = [
   },
   { value: 'notes', label: '笔记管理' },
   { value: 'remarks', label: '评论管理' },
+  { value: 'qa', label: '问答管理' },
   { value: 'sensitive', label: '敏感词检查' },
   { value: 'moderation', label: '内容审查' }
 ]
@@ -113,7 +118,7 @@ const activeSubmenu = ref(null)
 // 从查询参数中读取标签页
 onMounted(() => {
   const tabParam = route.query.tab
-  if (tabParam && ['online-users', 'all-users', 'notes', 'remarks', 'sensitive', 'moderation', 'dashboard'].includes(tabParam)) {
+  if (tabParam && ['online-users', 'all-users', 'notes', 'remarks', 'qa', 'sensitive', 'moderation', 'dashboard'].includes(tabParam)) {
     currentTab.value = tabParam
     // 如果是用户管理的子标签页，打开用户管理子菜单
     if (tabParam === 'online-users' || tabParam === 'all-users') {
@@ -124,7 +129,7 @@ onMounted(() => {
 
 // 监听路由查询参数变化
 watch(() => route.query.tab, (newTab) => {
-  if (newTab && ['online-users', 'all-users', 'notes', 'remarks', 'sensitive', 'moderation', 'dashboard'].includes(newTab)) {
+  if (newTab && ['online-users', 'all-users', 'notes', 'remarks', 'qa', 'sensitive', 'moderation', 'dashboard'].includes(newTab)) {
     currentTab.value = newTab
     // 如果是用户管理的子标签页，打开用户管理子菜单
     if (newTab === 'online-users' || newTab === 'all-users') {

@@ -125,6 +125,25 @@ export const reloadDeepCheckWords = async () => {
   return res.data
 }
 
+// ========== 问答管理 ==========
+// 统计问题总数
+export const getQuestionCount = async () => {
+  const res = await request.get('/admin/questions/count')
+  return res.data
+}
+
+// 获取所有问题列表
+export const getQuestionList = async () => {
+  const res = await request.get('/admin/questions/list')
+  return res.data
+}
+
+// 管理员删除问题（可删除任何问题）
+export const adminDeleteQuestion = async (questionId) => {
+  const res = await request.delete(`/admin/questions/${questionId}`)
+  return res.data
+}
+
 // ========== 内容审查管理 ==========
 // 提交审查记录（标记笔记为审核中）
 export const submitModeration = async (noteId, checkResult) => {
