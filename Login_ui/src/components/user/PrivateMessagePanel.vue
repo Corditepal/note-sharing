@@ -117,7 +117,12 @@
             </div>
           </header>
 
-          <div class="pm-messages" ref="messageListRef">
+          <div 
+            class="pm-messages" 
+            ref="messageListRef"
+            @wheel="handleMessageWheel"
+            @touchmove.stop
+          >
             <div v-if="loadingMessages" class="pm-loading">加载消息中...</div>
             <div v-else-if="messages.length === 0" class="pm-empty-messages">
               暂无消息，发送第一条打个招呼吧～
@@ -180,7 +185,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import { Client as StompClient } from '@stomp/stompjs'
@@ -487,12 +492,17 @@ async function loadMessagesForConversation(conversationId) {
   try {
     const detail = await fetchConversationDetail(conversationId)
     messages.value = detail?.messages || []
+    // 等待 DOM 更新后再滚动到底部
+    await nextTick()
     scrollToBottom()
   } catch (e) {
     console.error('加载会话消息失败', e)
     showError('加载会话消息失败，请稍后重试')
   } finally {
     loadingMessages.value = false
+    // 确保在加载完成后也滚动到底部
+    await nextTick()
+    scrollToBottom()
   }
 }
 
@@ -514,12 +524,34 @@ async function markAsRead(conversationId) {
 }
 
 function scrollToBottom() {
-  requestAnimationFrame(() => {
-    const el = messageListRef.value
-    if (el) {
-      el.scrollTop = el.scrollHeight
-    }
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      const el = messageListRef.value
+      if (el) {
+        el.scrollTop = el.scrollHeight
+      }
+    })
   })
+}
+
+function handleMessageWheel(event) {
+  const el = messageListRef.value
+  if (!el) return
+  
+  const { scrollTop, scrollHeight, clientHeight } = el
+  const isAtTop = scrollTop === 0
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1
+  
+  // 如果不在边界，或者滚动方向是向内的，阻止事件冒泡
+  if (!isAtTop && !isAtBottom) {
+    event.stopPropagation()
+  } else if (isAtTop && event.deltaY < 0) {
+    // 在顶部且向上滚动，阻止冒泡
+    event.stopPropagation()
+  } else if (isAtBottom && event.deltaY > 0) {
+    // 在底部且向下滚动，阻止冒泡
+    event.stopPropagation()
+  }
 }
 
 function handleEnterKey(event) {
@@ -1089,6 +1121,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   background: var(--surface-base);
+  height: 100%;
+  overflow: hidden;
 }
 
 .pm-chat-header {
@@ -1097,6 +1131,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   background: var(--surface-base);
+  flex-shrink: 0;
 }
 
 .pm-chat-peer {
@@ -1142,11 +1177,16 @@ onBeforeUnmount(() => {
 
 .pm-messages {
   flex: 1;
+  min-height: 0;
   padding: 14px 16px 10px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .pm-loading {
@@ -1213,6 +1253,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .pm-input {
@@ -1299,6 +1340,48 @@ onBeforeUnmount(() => {
 .pm-chat-placeholder-subtitle {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* 私信面板内滚动条样式（与页面滚动条明显区分） */
+.pm-conversation-list,
+.pm-mutual-users,
+.pm-messages {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--brand-primary) rgba(148, 163, 184, 0.18);
+}
+
+.pm-conversation-list::-webkit-scrollbar,
+.pm-mutual-users::-webkit-scrollbar,
+.pm-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pm-conversation-list::-webkit-scrollbar-track,
+.pm-mutual-users::-webkit-scrollbar-track,
+.pm-messages::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.03);
+  border-radius: 999px;
+}
+
+.pm-conversation-list::-webkit-scrollbar-thumb,
+.pm-mutual-users::-webkit-scrollbar-thumb,
+.pm-messages::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--brand-primary),
+    var(--brand-secondary)
+  );
+  border-radius: 999px;
+}
+
+.pm-conversation-list::-webkit-scrollbar-thumb:hover,
+.pm-mutual-users::-webkit-scrollbar-thumb:hover,
+.pm-messages::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    var(--brand-secondary),
+    var(--brand-primary)
+  );
 }
 
 @media (max-width: 960px) {
