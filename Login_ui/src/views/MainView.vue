@@ -303,9 +303,9 @@ const handleNotificationAvatarError = (event) => {
   event.target.src = '/assets/avatars/avatar.png'
 }
 
-const loadNotificationUserInfo = async (actorId) => {
+const loadNotificationUserInfo = async (actorId, forceRefresh = false) => {
   if (!actorId) return
-  if (notificationUserInfoMap.value[actorId]) return
+  if (!forceRefresh && notificationUserInfoMap.value[actorId]) return
   try {
     const res = await getUserById(actorId)
     const data = res.data || res
@@ -333,7 +333,7 @@ const refreshNotificationUnread = async () => {
   }
 }
 
-const loadNotifications = async () => {
+const loadNotifications = async (forceRefreshAvatars = false) => {
   if (!currentUserId.value) {
     notifications.value = []
     return
@@ -343,9 +343,9 @@ const loadNotifications = async () => {
     const arr = Array.isArray(list) ? list : []
     notifications.value = arr
 
-    // 加载所有通知发送者的头像信息
+    // 加载所有通知发送者的头像信息，如果强制刷新则忽略缓存
     const actorIds = Array.from(new Set(arr.map(n => n.actorId).filter(Boolean)))
-    await Promise.all(actorIds.map(id => loadNotificationUserInfo(id)))
+    await Promise.all(actorIds.map(id => loadNotificationUserInfo(id, forceRefreshAvatars)))
   } catch (e) {
     console.error('加载通知列表失败', e)
   }
@@ -354,7 +354,8 @@ const loadNotifications = async () => {
 const toggleNotificationPanel = async () => {
   showNotificationPanel.value = !showNotificationPanel.value
   if (showNotificationPanel.value) {
-    await Promise.all([loadNotifications(), refreshNotificationUnread()])
+    // 打开通知面板时，强制刷新所有用户的头像信息以显示最新头像
+    await Promise.all([loadNotifications(true), refreshNotificationUnread()])
   }
 }
 
@@ -989,6 +990,23 @@ watch(() => route.query.keyword, (newKeyword) => {
 watch(() => currentTab.value, (newTab) => {
   if (newTab === 'search' && route.query.keyword) {
     searchKeywordFromRoute.value = route.query.keyword
+  }
+})
+
+// 监听用户头像更新，同步更新通知中的头像缓存
+watch(() => userInfo.value.avatarUrl, async (newAvatarUrl, oldAvatarUrl) => {
+  // 当头像更新时，更新通知用户信息映射中的当前用户头像
+  if (currentUserId.value && newAvatarUrl && newAvatarUrl !== oldAvatarUrl) {
+    // 直接更新缓存中的头像URL
+    if (notificationUserInfoMap.value[currentUserId.value]) {
+      notificationUserInfoMap.value[currentUserId.value].avatarUrl = newAvatarUrl
+    }
+    // 强制重新加载当前用户信息以确保同步
+    await loadNotificationUserInfo(currentUserId.value, true)
+    // 如果通知面板是打开的，重新加载通知列表以刷新显示
+    if (showNotificationPanel.value) {
+      await loadNotifications()
+    }
   }
 })
 

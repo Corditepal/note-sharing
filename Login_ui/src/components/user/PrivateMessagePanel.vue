@@ -312,10 +312,10 @@ function handleAvatarError(event) {
   event.target.src = '/assets/avatars/avatar.png'
 }
 
-async function loadPeerUserInfo(peerId) {
+async function loadPeerUserInfo(peerId, forceRefresh = false) {
   if (!peerId) return
-  // 如果已经有完整的用户信息（包含用户名），直接返回
-  if (peerUserInfoMap.value[peerId] && peerUserInfoMap.value[peerId].username) {
+  // 如果已经有完整的用户信息（包含用户名）且不需要强制刷新，直接返回
+  if (!forceRefresh && peerUserInfoMap.value[peerId] && peerUserInfoMap.value[peerId].username) {
     return
   }
   try {
@@ -360,7 +360,7 @@ function formatFullTimeDisplay(time) {
   return formatFullTime(time)
 }
 
-async function loadConversations() {
+async function loadConversations(forceRefreshAvatars = false) {
   if (!currentUserId.value) return
   loadingConversations.value = true
   try {
@@ -370,9 +370,9 @@ async function loadConversations() {
     }))
     conversations.value = list
     
-    // 加载所有会话对方的用户信息
+    // 加载所有会话对方的用户信息，如果强制刷新则忽略缓存
     const peerIds = list.map(item => item.peerId).filter(Boolean)
-    await Promise.all(peerIds.map(peerId => loadPeerUserInfo(peerId)))
+    await Promise.all(peerIds.map(peerId => loadPeerUserInfo(peerId, forceRefreshAvatars)))
   } catch (e) {
     console.error('加载会话列表失败', e)
     showError('加载会话列表失败，请稍后重试')
@@ -413,7 +413,7 @@ async function loadMutualFollowUsers() {
       .filter(f => followingIds.has(f.userId))
       .map(f => f.userId)
     
-    // 获取这些用户的详细信息
+    // 获取这些用户的详细信息（强制刷新以获取最新头像）
     const userPromises = mutualIds.map(userId => 
       getUserById(userId).catch(() => null)
     )
@@ -432,7 +432,7 @@ async function loadMutualFollowUsers() {
       .map(u => {
         const userData = u.data || u
         const userId = userData.id || userData.userId
-        // 保存用户信息到 map 中
+        // 保存用户信息到 map 中（强制更新以获取最新头像）
         if (userId) {
           peerUserInfoMap.value[userId] = {
             username: userData.username,
@@ -468,12 +468,13 @@ async function handleStartNewConversation(user) {
     return
   }
   
-  // 加载用户信息
-  await loadPeerUserInfo(user.userId)
+  // 加载用户信息（强制刷新以获取最新头像）
+  await loadPeerUserInfo(user.userId, true)
   
   // 设置当前会话信息（但还没有 conversationId，需要发送第一条消息后才会创建）
   currentPeerId.value = user.userId
-  currentPeerName.value = user.username || `用户 ${user.userId}`
+  const userInfo = peerUserInfoMap.value[user.userId]
+  currentPeerName.value = userInfo?.username || user.username || `用户 ${user.userId}`
   currentConversationId.value = null // 新会话，还没有 conversationId
   messages.value = []
   
@@ -484,8 +485,8 @@ async function handleStartNewConversation(user) {
 async function handleSelectConversation(item) {
   currentConversationId.value = item.conversationId
   currentPeerId.value = item.peerId
-  // 先加载用户信息，确保显示真实用户名
-  await loadPeerUserInfo(item.peerId)
+  // 先加载用户信息，确保显示真实用户名和最新头像
+  await loadPeerUserInfo(item.peerId, true) // 强制刷新以获取最新头像
   const userInfo = peerUserInfoMap.value[item.peerId]
   currentPeerName.value = userInfo?.username || item.peerName || null
 
@@ -783,7 +784,8 @@ watch(
   () => props.visible,
   async (val) => {
     if (val) {
-      await Promise.all([loadConversations(), loadUnreadStats()])
+      // 打开私信面板时，强制刷新所有用户的头像信息以显示最新头像
+      await Promise.all([loadConversations(true), loadUnreadStats()])
       // 如果会话列表为空，加载互相关注用户列表
       await loadMutualFollowUsers()
       ensureStompClient()
@@ -798,6 +800,19 @@ watch(
   },
   { immediate: false }
 )
+
+// 监听用户头像更新，同步更新私信中的头像缓存
+watch(() => userInfo.value.avatarUrl, async (newAvatarUrl, oldAvatarUrl) => {
+  // 当头像更新时，更新私信用户信息映射中的当前用户头像
+  if (currentUserId.value && newAvatarUrl && newAvatarUrl !== oldAvatarUrl) {
+    // 直接更新缓存中的头像URL
+    if (peerUserInfoMap.value[currentUserId.value]) {
+      peerUserInfoMap.value[currentUserId.value].avatarUrl = newAvatarUrl
+    }
+    // 强制重新加载当前用户信息以确保同步
+    await loadPeerUserInfo(currentUserId.value, true)
+  }
+})
 
 onMounted(() => {
   if (props.visible) {
