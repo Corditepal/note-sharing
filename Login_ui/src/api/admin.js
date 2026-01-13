@@ -10,12 +10,6 @@ export const adminLogin = async (email, password) => {
 }
 
 // ========== 在线用户管理 ==========
-// 获取当前在线人数
-export const getOnlineCount = async () => {
-  const res = await request.get('/admin/online-count')
-  return res.data
-}
-
 // 获取所有在线用户
 export const getOnlineUsers = async () => {
   const res = await request.get('/admin/online-users')

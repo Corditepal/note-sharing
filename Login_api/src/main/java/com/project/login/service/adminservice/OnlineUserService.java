@@ -28,51 +28,6 @@ public class OnlineUserService {
     private final JwtService jwtService;
     private static final String ACTIVE_TOKEN_QUEUE = "active.token.queue";
 
-    public int getOnlineUserCount() {
-        try {
-            Queue queue = new Queue(ACTIVE_TOKEN_QUEUE, true);
-            rabbitAdmin.declareQueue(queue);
-            
-            List<String> validTokens = new ArrayList<>();
-            int nonAdminCount = 0;
-            
-            Message message;
-            int maxIterations = 10000;
-            int count = 0;
-            
-            while ((message = rabbitTemplate.receive(ACTIVE_TOKEN_QUEUE, 100)) != null && count < maxIterations) {
-                count++;
-                
-                try {
-                    String token = new String(message.getBody(), StandardCharsets.UTF_8);
-                    
-                    String role = jwtService.extractRole(token);
-                    if (role != null && "Admin".equals(role)) {
-                        continue;
-                    }
-                    
-                    UserEntity user = jwtService.getUserByToken(token);
-                    if (user != null) {
-                        nonAdminCount++;
-                        validTokens.add(token);
-                    }
-                } catch (Exception e) {
-                    log.warn("解析 token 失败，跳过该消息", e);
-                }
-            }
-            
-            for (String token : validTokens) {
-                addActiveToken(token);
-            }
-            
-            log.info("当前在线人数（排除管理员）: {}", nonAdminCount);
-            return nonAdminCount;
-        } catch (Exception e) {
-            log.error("获取在线人数失败", e);
-            return 0;
-        }
-    }
-
     public void addActiveToken(String token) {
         try {
             String role = jwtService.extractRole(token);

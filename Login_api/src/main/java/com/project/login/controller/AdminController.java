@@ -49,17 +49,6 @@ public class AdminController {
     private final DeepFilterService deepFilterService;
     private final ModerationService moderationService;
 
-    @Operation(summary = "获取当前在线人数")
-    @GetMapping("/online-count")
-    public StandardResponse<Map<String, Integer>> getOnlineUserCount() {
-        int count = onlineUserService.getOnlineUserCount();
-        
-        Map<String, Integer> result = new HashMap<>();
-        result.put("onlineCount", count);
-        
-        return StandardResponse.success("获取成功", result);
-    }
-
     @Operation(summary = "获取当前所有在线用户")
     @GetMapping("/online-users")
     public StandardResponse<List<Map<String, Object>>> getAllOnlineUsers() {
