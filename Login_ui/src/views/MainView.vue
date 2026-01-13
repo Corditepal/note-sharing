@@ -474,10 +474,17 @@ watch(currentTab, (newTab, oldTab) => {
   // 但如果是从详情页返回（有 keyword），则保留 searchType
   if (newTab === 'search' && !route.query.keyword) {
     delete newQuery.searchType
+    // 清除 noteId，避免在搜索页时还保留旧的 noteId
+    delete newQuery.noteId
+    delete newQuery.title
+    delete newQuery.fileType
   }
   // 如果是从详情页返回到搜索页，确保保留搜索参数
   else if (newTab === 'search' && oldTab === 'note-detail' && route.query.keyword) {
-    // 保留 keyword 和 searchType，不做任何删除操作
+    // 保留 keyword 和 searchType，但清除 noteId 相关参数
+    delete newQuery.noteId
+    delete newQuery.title
+    delete newQuery.fileType
   }
   
   // 如果是从详情页返回到其他页面，清除详情页相关参数
@@ -547,9 +554,13 @@ const restoreNoteDetailFromRoute = () => {
     if (noteIdFromQuery) {
       const noteId = Number(noteIdFromQuery)
       if (!isNaN(noteId) && noteId > 0) {
-        viewingNoteId.value = noteId
-        // 从 URL 恢复标题
-        noteDetailTitle.value = route.query.title || null
+        // 只有当 viewingNoteId 为空或与 URL 中的 noteId 不一致时才更新
+        // 这样可以避免覆盖 handleOpenNoteDetail 中已经设置的值
+        if (!viewingNoteId.value || viewingNoteId.value !== noteId) {
+          viewingNoteId.value = noteId
+          // 从 URL 恢复标题
+          noteDetailTitle.value = route.query.title || null
+        }
       }
     }
   }
@@ -608,6 +619,31 @@ watch(() => route.query.workspaceId, (newWorkspaceId) => {
     }
   }
 })
+
+// 监听 noteId 变化，确保 viewingNoteId 与 URL 同步
+watch(() => route.query.noteId, (newNoteId, oldNoteId) => {
+  // 只有在 note-detail tab 时才更新 viewingNoteId
+  if (currentTab.value === 'note-detail' && newNoteId) {
+    const noteId = Number(newNoteId)
+    if (!isNaN(noteId) && noteId > 0) {
+      // 只有当 noteId 真正变化时才更新，避免不必要的更新
+      if (viewingNoteId.value !== noteId) {
+        console.log('[MainView] noteId 变化，从', viewingNoteId.value, '到', noteId)
+        viewingNoteId.value = noteId
+        // 同时更新标题（如果 URL 中有）
+        noteDetailTitle.value = route.query.title || null
+      }
+    }
+  } else if (currentTab.value !== 'note-detail' && oldNoteId && !newNoteId) {
+    // 当离开 note-detail tab 且 noteId 被清除时，也清除 viewingNoteId
+    if (viewingNoteId.value) {
+      console.log('[MainView] 清除 viewingNoteId，因为离开了 note-detail tab')
+      viewingNoteId.value = null
+      noteDetailTitle.value = null
+      noteDetailStats.value = null
+    }
+  }
+}, { immediate: true })
 
 // --- 新增状态和方法来管理编辑器视图 ---
 
