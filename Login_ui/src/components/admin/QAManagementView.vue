@@ -74,7 +74,7 @@
             </div>
           </div>
           <div class="question-actions">
-            <button class="action-btn" @click.stop="viewQuestion(question)">查看</button>
+            <button class="action-btn view-btn" @click.stop="viewQuestion(question)">查看</button>
             <button class="action-btn delete-btn" @click.stop="handleDeleteQuestion(question)">删除</button>
           </div>
         </div>
@@ -835,6 +835,17 @@ onUnmounted(() => {
 
 .action-btn:hover {
   background: #007FFF;
+  color: white;
+}
+
+.action-btn.view-btn {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+
+.action-btn.view-btn:hover {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: white;
 }
 
