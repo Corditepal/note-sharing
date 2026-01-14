@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="toast">
-      <div v-if="visible" class="message-toast-overlay" @click.self="handleClose">
+      <div v-if="visible" class="message-toast-overlay">
         <div class="message-toast" :class="`toast-${type}`">
           <div class="toast-icon" :class="`icon-${type}`">
             <svg v-if="type === 'success'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
