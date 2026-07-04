@@ -357,7 +357,7 @@ const loadData = async () => {
     if (err.response) {
       // 有响应但状态码不是 2xx
       if (err.response.status === 400) {
-        errorMsg = err.response.data?.message || '请求参数错误，请检查用户ID'
+        errorMsg = err.response.data?.message || err.response.data?.error || '请求参数错误，请检查用户ID'
       } else if (err.response.status === 401) {
         errorMsg = '未登录或登录已过期，请重新登录'
       } else if (err.response.status === 404) {

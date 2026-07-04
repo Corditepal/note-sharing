@@ -146,6 +146,20 @@ const { showToast, toastMessage, toastType, toastDuration, showSuccess, showErro
 // 基础 API 地址
 const BASE_PATH = "/noting";
 const CURRENT_USER_ID = computed(() => userStore.userInfo.id);
+const DEFAULT_TAG = "默认";
+
+function normalizeTag(value) {
+  const text = (value ?? "").toString().trim();
+  return text || DEFAULT_TAG;
+}
+
+function formatRequestError(error) {
+  const data = error?.response?.data;
+  if (!data) {
+    return error?.message || "网络或服务器错误";
+  }
+  return data.message || data.error || "网络或服务器错误";
+}
 
 /* ===============================
  数据
@@ -508,7 +522,7 @@ const confirmDialog = async () => {
 
   try {
     if (type === "create-workspace") {
-      const requestBody = { name: form.name, userId: CURRENT_USER_ID.value , tag: form.tag };
+      const requestBody = { name: form.name, userId: CURRENT_USER_ID.value, tag: normalizeTag(form.tag) };
       const response = await service.post(`${BASE_PATH}/spaces`, requestBody);
       const newSpaceVO = response.data.data;
       newSpaceVO.tagName = await getTagNameString(newSpaceVO.tag);
@@ -517,7 +531,7 @@ const confirmDialog = async () => {
 
     } else if (type === "rename-workspace") {
       const target = workspaceContextMenu.value.target;
-      const requestBody = { id: target.id, name: form.name, tag: form.tag, userId: CURRENT_USER_ID.value };
+      const requestBody = { id: target.id, name: form.name, tag: normalizeTag(form.tag), userId: CURRENT_USER_ID.value };
       const response = await service.put(`${BASE_PATH}/spaces`, requestBody);
       const updatedSpaceVO = response.data.data;
       updatedSpaceVO.tagName = await getTagNameString(updatedSpaceVO.tag);
@@ -525,7 +539,7 @@ const confirmDialog = async () => {
 
     } else if (type === "create-notebook") {
       const spaceId = selectedWorkspace.value?.id;
-      const requestBody = { spaceId: spaceId, name: form.name, tag: form.tag, userId: CURRENT_USER_ID.value };
+      const requestBody = { spaceId: spaceId, name: form.name, tag: normalizeTag(form.tag), userId: CURRENT_USER_ID.value };
       const response = await service.post(`${BASE_PATH}/notebooks`, requestBody);
       const newNotebookVO = response.data.data;
       newNotebookVO.tagName = await getTagNameString(newNotebookVO.tag ?? newNotebookVO.tagId);
@@ -533,7 +547,7 @@ const confirmDialog = async () => {
 
     } else if (type === "rename-notebook") {
       const target = selectedNotebook.value;
-      const requestBody = { id: target.id, name: form.name, tag: form.tag, userId: CURRENT_USER_ID.value };
+      const requestBody = { id: target.id, name: form.name, tag: normalizeTag(form.tag), userId: CURRENT_USER_ID.value };
       const response = await service.put(`${BASE_PATH}/notebooks`, requestBody);
       const updatedNotebookVO = response.data.data;
       updatedNotebookVO.tagName = await getTagNameString(updatedNotebookVO.tag ?? updatedNotebookVO.tagId);
@@ -552,7 +566,7 @@ const confirmDialog = async () => {
       selectedNotebook.value = null;
     }
   } catch (error) {
-    showError(`${dialog.value.title} 失败: ` + (error.response?.data?.message || '网络或服务器错误'));
+    showError(`${dialog.value.title} 失败: ` + formatRequestError(error));
   }
   dialog.value.visible = false;
 };

@@ -2,21 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any
+from typing import Any, TypeVar
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from pydantic import BaseModel, ValidationError
 
 from .agent import AgentRuntime
 from .auth import AuthError, extract_user_from_authorization
 from .login_api_client import LoginApiClient
 from .schemas import (
     ChatRequest,
+    DraftQuestionRequest,
     KeywordRequest,
     NoteSummaryRequest,
     QuestionReferenceRequest,
     SimilarQuestionRequest,
+    SiteSearchRequest,
 )
 from .settings import settings
 
@@ -31,12 +34,38 @@ app.add_middleware(
 
 agent_runtime = AgentRuntime(LoginApiClient(settings.login_api_base_url))
 
+ModelT = TypeVar("ModelT", bound=BaseModel)
+
+
+async def _parse_model(model_cls: type[ModelT], request: Request) -> ModelT:
+    try:
+        return model_cls.model_validate(await request.json())
+    except ValidationError as exc:
+        detail = _validation_error_detail(exc)
+        raise HTTPException(status_code=422, detail=detail) from exc
+
+
+def _validation_error_detail(exc: ValidationError) -> str:
+    errors = exc.errors()
+    if not errors:
+        return "validation error"
+    message = str(errors[0].get("msg") or "validation error")
+    if message.startswith("Value error, "):
+        message = message.removeprefix("Value error, ")
+    return message
+
 
 def _auth_token(authorization: str | None) -> str | None:
     try:
-        user = extract_user_from_authorization(authorization, settings.jwt_secret or None)
-        if not user.user_id and not user.username:
+        user = extract_user_from_authorization(
+            authorization,
+            secret=settings.jwt_secret,
+            auth_disabled=settings.auth_disabled,
+        )
+        if not settings.auth_disabled and not user.user_id and not user.username:
             raise AuthError("empty user payload")
+        if not authorization or not authorization.startswith("Bearer "):
+            return None
         return authorization.removeprefix("Bearer ").strip()
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
@@ -55,7 +84,7 @@ def _stream_sse(data: dict[str, Any]):
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             await asyncio.sleep(0.02)
 
-        yield f"data: {json.dumps({'done': True, 'answer': answer, 'citations': data.get('citations', []), 'route': data.get('route'), 'blocked': data.get('blocked', False), 'reason': data.get('reason')}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'done': True, 'answer': answer, 'answerFormat': data.get('answerFormat', 'markdown'), 'citations': data.get('citations', []), 'answerLinks': data.get('answerLinks', []), 'route': data.get('route'), 'blocked': data.get('blocked', False), 'reason': data.get('reason')}, ensure_ascii=False)}\n\n"
 
     return generator()
 
@@ -373,7 +402,7 @@ async def shell():
 @app.post("/api/v1/agent/chat")
 async def chat(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = ChatRequest.model_validate(await request.json())
+    payload = await _parse_model(ChatRequest, request)
     result = await agent_runtime.run(payload, auth_token)
     return JSONResponse(result)
 
@@ -381,7 +410,7 @@ async def chat(request: Request, authorization: str | None = Header(default=None
 @app.post("/api/v1/agent/chat/stream")
 async def chat_stream(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = ChatRequest.model_validate(await request.json())
+    payload = await _parse_model(ChatRequest, request)
     result = await agent_runtime.run(payload, auth_token)
     return StreamingResponse(_stream_sse(result), media_type="text/event-stream")
 
@@ -389,7 +418,7 @@ async def chat_stream(request: Request, authorization: str | None = Header(defau
 @app.post("/api/v1/agent/keywords")
 async def keywords(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = KeywordRequest.model_validate(await request.json())
+    payload = await _parse_model(KeywordRequest, request)
     result = await agent_runtime.keywords(payload, auth_token)
     return JSONResponse(result)
 
@@ -397,15 +426,36 @@ async def keywords(request: Request, authorization: str | None = Header(default=
 @app.post("/api/v1/agent/similar-questions")
 async def similar_questions(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = SimilarQuestionRequest.model_validate(await request.json())
+    payload = await _parse_model(SimilarQuestionRequest, request)
     result = await agent_runtime.similar_questions(payload, auth_token)
+    return JSONResponse(result)
+
+
+@app.post("/api/v1/agent/draft-question")
+async def draft_question(request: Request, authorization: str | None = Header(default=None)):
+    auth_token = _auth_token(authorization)
+    payload = await _parse_model(DraftQuestionRequest, request)
+    if not payload.input.strip():
+        raise HTTPException(status_code=422, detail="input is required")
+    result = await agent_runtime.draft_question(payload, auth_token)
+    return JSONResponse(result)
+
+
+@app.post("/api/v1/agent/site-search")
+async def site_search(request: Request, authorization: str | None = Header(default=None)):
+    auth_token = _auth_token(authorization)
+    payload = await _parse_model(SiteSearchRequest, request)
+    keyword = payload.keyword.strip()
+    if len(keyword) < 2:
+        raise HTTPException(status_code=422, detail="keyword must be at least 2 characters")
+    result = await agent_runtime.site_search(payload, auth_token)
     return JSONResponse(result)
 
 
 @app.post("/api/v1/agent/notes/summary")
 async def note_summary(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = NoteSummaryRequest.model_validate(await request.json())
+    payload = await _parse_model(NoteSummaryRequest, request)
     result = await agent_runtime.summarize_note(payload, auth_token)
     return JSONResponse(result)
 
@@ -413,6 +463,6 @@ async def note_summary(request: Request, authorization: str | None = Header(defa
 @app.post("/api/v1/agent/questions/reference")
 async def question_reference(request: Request, authorization: str | None = Header(default=None)):
     auth_token = _auth_token(authorization)
-    payload = QuestionReferenceRequest.model_validate(await request.json())
+    payload = await _parse_model(QuestionReferenceRequest, request)
     result = await agent_runtime.reference_question(payload, auth_token)
     return JSONResponse(result)

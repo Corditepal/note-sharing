@@ -7,6 +7,7 @@
     "build": "vue-cli-service build"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.0.0",
     "@tiptap/core": "^3.11.0",
     "@tiptap/extension-bubble-menu": "^3.11.0",
     "@tiptap/extension-code-block-lowlight": "^3.11.0",
@@ -30,13 +31,13 @@
     "axios": "^1.13.2",
     "core-js": "^3.8.3",
     "cropperjs": "^1.5.13",
+    "dompurify": "^3.4.11",
     "lodash-es": "^4.17.21",
     "lowlight": "^3.3.0",
     "markdown-it": "^14.1.0",
     "pinia": "^3.0.4",
-    "sockjs-client": "^1.6.1",
-    "@stomp/stompjs": "^7.0.0",
     "smeditor": "^0.1.19",
+    "sockjs-client": "^1.6.1",
     "turndown": "^7.2.2",
     "vue": "^3.3.4",
     "vue-pdf-embed": "^2.1.3",

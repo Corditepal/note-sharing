@@ -22,26 +22,77 @@ class LoginApiClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
             response = await client.post(url, params={"noteId": note_id}, headers=headers)
             response.raise_for_status()
             return _unwrap_standard_response(response.json()) or {}
 
+    async def validate_note_exists(self, note_id: int, token: str | None = None) -> dict | None:
+        try:
+            preview = await self.fetch_note_preview(note_id, token)
+        except httpx.HTTPError:
+            return None
+        return preview if isinstance(preview, dict) and preview else None
+
     async def search_notes(self, keyword: str, user_id: int | None = None, token: str | None = None) -> list[dict]:
+        text = str(keyword or "").strip()
+        if len(text) < 2 or user_id is None:
+            return []
+
         url = f"{self.base_url.rstrip('/')}/api/v1/search/notes"
         headers = {}
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        payload = {"keyword": keyword}
-        if user_id is not None:
-            payload["userId"] = user_id
+        payload = {"keyword": text, "userId": user_id}
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            data = _unwrap_standard_response(response.json())
-            return data if isinstance(data, list) else []
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                data = _unwrap_standard_response(response.json())
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
+        except httpx.HTTPError:
+            return []
+
+    async def fetch_published_catalog(self, token: str | None = None, limit: int = 5) -> list[dict]:
+        capped = max(1, min(int(limit), 10))
+        url = f"{self.base_url.rstrip('/')}/api/v1/search/notes/catalog"
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+                response = await client.get(url, params={"limit": capped}, headers=headers)
+                if response.status_code == 404:
+                    return []
+                response.raise_for_status()
+                data = _unwrap_standard_response(response.json())
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
+        except httpx.HTTPError:
+            return []
+
+    async def fetch_hot_notes(self, token: str | None = None) -> list[dict]:
+        url = f"{self.base_url.rstrip('/')}/api/v1/hot/notes"
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                data = _unwrap_standard_response(response.json())
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
+        except httpx.HTTPError:
+            return []
 
     async def search_questions(self, keyword: str, token: str | None = None) -> list[dict]:
         url = f"{self.base_url.rstrip('/')}/api/v1/search/questions"
@@ -49,11 +100,16 @@ class LoginApiClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(url, params={"keyword": keyword}, headers=headers)
-            response.raise_for_status()
-            data = _unwrap_standard_response(response.json())
-            return data if isinstance(data, list) else []
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
+                response = await client.get(url, params={"keyword": keyword}, headers=headers)
+                response.raise_for_status()
+                data = _unwrap_standard_response(response.json())
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
+        except httpx.HTTPError:
+            return []
 
     async def fetch_question_detail(self, question_id: str, token: str | None = None) -> dict:
         url = f"{self.base_url.rstrip('/')}/api/v1/qa/question/{question_id}"
@@ -61,7 +117,7 @@ class LoginApiClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
             response = await client.get(url, headers=headers)
             response.raise_for_status()
             return _unwrap_standard_response(response.json()) or {}
@@ -72,7 +128,7 @@ class LoginApiClient:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(timeout=self.timeout, trust_env=False) as client:
             response = await client.get(url, params={"noteId": note_id, "loginUserId": login_user_id}, headers=headers)
             response.raise_for_status()
             data = _unwrap_standard_response(response.json())

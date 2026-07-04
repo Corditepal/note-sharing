@@ -107,6 +107,49 @@
             rows="4"
             placeholder="补充细节，描述场景、遇到的问题等"
           ></textarea>
+          <div v-if="similarStatus !== 'idle'" class="similar-questions-panel">
+            <p v-if="similarStatus === 'loading'" class="similar-questions-hint">检测相似问题…</p>
+            <p v-else-if="similarStatus === 'empty'" class="similar-questions-hint">{{ AI_MESSAGES.similarEmpty }}</p>
+            <p v-else-if="similarStatus === 'error'" class="similar-questions-hint similar-questions-hint--warn">
+              {{ AI_MESSAGES.similarFailed }}
+            </p>
+            <ul v-else-if="similarStatus === 'ready' && similarQuestions.length" class="similar-questions-list">
+              <li
+                v-for="item in similarQuestions"
+                :key="item.questionId"
+                class="similar-questions-item"
+              >
+                <button type="button" class="similar-questions-link" @click="handleSimilarQuestionClick(item)">
+                  {{ item.title }}
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div class="draft-question-panel">
+            <div class="draft-question-actions">
+              <button
+                type="button"
+                class="draft-question-btn"
+                :disabled="draftLoading"
+                @click="handleAiDraft"
+              >
+                AI 起草
+              </button>
+              <p v-if="draftLoading" class="draft-question-hint">正在生成草稿…</p>
+              <p v-else-if="draftError" class="draft-question-hint draft-question-hint--warn">{{ draftError }}</p>
+            </div>
+            <div v-if="draftPreview" class="draft-question-preview">
+              <p class="draft-question-preview-title">{{ draftPreview.title }}</p>
+              <p class="draft-question-preview-content">{{ draftPreview.content }}</p>
+              <p v-if="draftPreview.tags?.length" class="draft-question-preview-tags">
+                {{ draftPreview.tags.map(tag => `#${tag}`).join(' ') }}
+              </p>
+              <div class="draft-question-preview-actions">
+                <button type="button" class="ghost-btn" @click="discardDraft">放弃</button>
+                <button type="button" class="primary-btn" @click="acceptDraft">采纳</button>
+              </div>
+            </div>
+          </div>
           <input v-model="askForm.tagsText" type="text" placeholder="标签，使用逗号分隔，例如：Java, Vue3" />
         </div>
         <footer class="dialog-footer">
@@ -132,9 +175,11 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { fetchSimilarQuestions, fetchDraftQuestion } from '@/api/ai'
+import { AI_MESSAGES } from '@/constants/aiMessages'
 import {
   createQuestion,
   getQuestionDetail,
@@ -167,6 +212,92 @@ const askForm = reactive({
   content: '',
   tagsText: ''
 })
+
+const similarQuestions = ref([])
+const similarStatus = ref('idle')
+const similarRequestId = ref(0)
+let similarDebounceTimer = null
+
+const draftLoading = ref(false)
+const draftPreview = ref(null)
+const draftError = ref('')
+
+const resetDraftQuestion = () => {
+  draftLoading.value = false
+  draftPreview.value = null
+  draftError.value = ''
+}
+
+const buildDraftInput = () => {
+  return [askForm.title, askForm.content]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+}
+
+const resetSimilarQuestions = () => {
+  similarQuestions.value = []
+  similarStatus.value = 'idle'
+  similarRequestId.value += 1
+}
+
+const buildSimilarQuestionQuery = () => {
+  return [askForm.title, askForm.content]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+}
+
+const scheduleSimilarQuestionSearch = () => {
+  if (!askVisible.value) {
+    return
+  }
+
+  if (similarDebounceTimer) {
+    clearTimeout(similarDebounceTimer)
+  }
+
+  similarDebounceTimer = setTimeout(() => {
+    similarDebounceTimer = null
+    void loadSimilarQuestions()
+  }, 500)
+}
+
+const loadSimilarQuestions = async () => {
+  if (!askVisible.value) {
+    return
+  }
+
+  const query = buildSimilarQuestionQuery()
+  if (query.length < 2) {
+    resetSimilarQuestions()
+    return
+  }
+
+  const requestId = similarRequestId.value + 1
+  similarRequestId.value = requestId
+  similarStatus.value = 'loading'
+
+  try {
+    const result = await fetchSimilarQuestions(query, { limit: 3 })
+    if (!askVisible.value || requestId !== similarRequestId.value) {
+      return
+    }
+
+    const items = Array.isArray(result?.items) ? result.items : []
+    similarQuestions.value = items.filter(item => item?.questionId && item?.title)
+    similarStatus.value = similarQuestions.value.length ? 'ready' : 'empty'
+  } catch (err) {
+    console.warn('相似问题检测失败', err)
+    if (!askVisible.value || requestId !== similarRequestId.value) {
+      return
+    }
+    similarQuestions.value = []
+    similarStatus.value = 'error'
+  }
+}
 
 // 从localStorage加载问题列表
 const loadQuestionsFromStorage = () => {
@@ -339,6 +470,17 @@ const handleItemClick = async (item) => {
 
 // 打开提问对话框
 const openAskDialog = () => {
+  resetSimilarQuestions()
+  resetDraftQuestion()
+  askVisible.value = true
+}
+
+const applyDraftAndOpenAsk = ({ title, content, tags = [] }) => {
+  resetSimilarQuestions()
+  resetDraftQuestion()
+  askForm.title = String(title || '').trim()
+  askForm.content = String(content || '').trim()
+  askForm.tagsText = Array.isArray(tags) ? tags.filter(Boolean).join(', ') : ''
   askVisible.value = true
 }
 
@@ -348,6 +490,71 @@ const closeAskDialog = () => {
   askForm.title = ''
   askForm.content = ''
   askForm.tagsText = ''
+  if (similarDebounceTimer) {
+    clearTimeout(similarDebounceTimer)
+    similarDebounceTimer = null
+  }
+  resetSimilarQuestions()
+  resetDraftQuestion()
+}
+
+const handleAiDraft = async () => {
+  draftError.value = ''
+  draftPreview.value = null
+
+  const query = buildDraftInput()
+  if (query.length < 1) {
+    draftError.value = AI_MESSAGES.draftInputEmpty
+    return
+  }
+
+  draftLoading.value = true
+  try {
+    const result = await fetchDraftQuestion(query, { context: { page: 'qa' } })
+    const title = String(result?.title || '').trim()
+    const content = String(result?.content || '').trim()
+    const tags = Array.isArray(result?.tags) ? result.tags.filter(Boolean) : []
+
+    if (!title || !content) {
+      draftError.value = AI_MESSAGES.draftFailed
+      return
+    }
+
+    draftPreview.value = { title, content, tags }
+  } catch (err) {
+    console.warn('AI 起草失败', err)
+    draftError.value = AI_MESSAGES.draftFailed
+  } finally {
+    draftLoading.value = false
+  }
+}
+
+const acceptDraft = () => {
+  if (!draftPreview.value) {
+    return
+  }
+
+  askForm.title = draftPreview.value.title
+  askForm.content = draftPreview.value.content
+  askForm.tagsText = (draftPreview.value.tags || []).join(', ')
+  resetDraftQuestion()
+}
+
+const discardDraft = () => {
+  resetDraftQuestion()
+}
+
+const handleSimilarQuestionClick = async (item) => {
+  const questionId = item?.route?.questionId || item?.questionId
+  if (!questionId) {
+    return
+  }
+
+  closeAskDialog()
+  await handleItemClick({
+    questionId,
+    type: 'question'
+  })
 }
 
 // 创建问题
@@ -458,6 +665,23 @@ watch(() => route.query.questionId, async (questionId) => {
   }
 }, { immediate: true })
 
+watch(
+  () => [askForm.title, askForm.content, askVisible.value],
+  () => {
+    if (!askVisible.value) {
+      return
+    }
+    scheduleSimilarQuestionSearch()
+  }
+)
+
+onBeforeUnmount(() => {
+  if (similarDebounceTimer) {
+    clearTimeout(similarDebounceTimer)
+    similarDebounceTimer = null
+  }
+})
+
 // 组件挂载时加载本地存储的问题列表
 onMounted(() => {
   loadQuestionsFromStorage()
@@ -483,7 +707,7 @@ onMounted(() => {
   }
 })
 
-defineExpose({ openAskDialog })
+defineExpose({ openAskDialog, applyDraftAndOpenAsk })
 </script>
 
 <style scoped>
@@ -764,6 +988,126 @@ defineExpose({ openAskDialog })
 
 .dialog-body textarea {
   resize: vertical;
+}
+
+.similar-questions-panel {
+  border: 1px dashed var(--line-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-muted);
+}
+
+.similar-questions-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.similar-questions-hint--warn {
+  color: #b45309;
+}
+
+.similar-questions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.similar-questions-item {
+  margin: 0;
+}
+
+.similar-questions-link {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--brand-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.similar-questions-link:hover {
+  text-decoration: underline;
+}
+
+.draft-question-panel {
+  border: 1px dashed var(--line-soft);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.draft-question-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.draft-question-btn {
+  border: 1px solid var(--brand-primary);
+  background: #fff;
+  color: var(--brand-primary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.draft-question-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.draft-question-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.draft-question-hint--warn {
+  color: #b45309;
+}
+
+.draft-question-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.draft-question-preview-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.draft-question-preview-content {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.draft-question-preview-tags {
+  margin: 0;
+  font-size: 12px;
+  color: var(--brand-primary);
+}
+
+.draft-question-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .dialog-footer {

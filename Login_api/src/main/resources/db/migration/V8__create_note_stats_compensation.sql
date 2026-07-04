@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS note_stats_compensation (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    note_id BIGINT NOT NULL,
+    author_name VARCHAR(64) NOT NULL DEFAULT '',
+    views BIGINT NOT NULL DEFAULT 0,
+    likes BIGINT NOT NULL DEFAULT 0,
+    favorites BIGINT NOT NULL DEFAULT 0,
+    comments BIGINT NOT NULL DEFAULT 0,
+    last_activity_at TIMESTAMP NULL DEFAULT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    retry_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_note_stats_compensation_note_id (note_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

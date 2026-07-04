@@ -226,6 +226,8 @@
     <AiAssistantPanel
       v-model:visible="showAiAssistantPanel"
       :context="aiHostContext"
+      @navigate-citation="handleAiCitationNavigate"
+      @apply-qa-draft="handleApplyQaDraft"
     />
   </div>
 </template>
@@ -972,6 +974,13 @@ const handleAskClick = () => {
   })
 }
 
+const handleApplyQaDraft = (payload) => {
+  currentTab.value = 'circle'
+  nextTick(() => {
+    qaRef.value?.applyDraftAndOpenAsk?.(payload)
+  })
+}
+
 // 处理搜索功能
 const handleSearch = () => {
   const keyword = searchKeyword.value.trim()
@@ -991,6 +1000,33 @@ const handleSearch = () => {
       searchType: 'notes' // 从主页搜索框搜索时，默认搜索笔记
     }
   })
+}
+
+const handleAiCitationNavigate = (target) => {
+  if (!target || typeof target !== 'object') {
+    return
+  }
+
+  if (target.type === 'note' && target.noteId) {
+    handleOpenNoteDetail({
+      noteId: target.noteId,
+      title: target.title || undefined,
+      fromTab: currentTab.value || 'hot'
+    })
+    return
+  }
+
+  if (target.type === 'question' && target.questionId) {
+    router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        tab: 'qa-detail',
+        questionId: target.questionId
+      }
+    })
+    currentTab.value = 'qa-detail'
+  }
 }
 
 // 处理打开笔记详情页（从搜索结果点击）

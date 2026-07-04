@@ -27,4 +27,3 @@ CREATE TABLE IF NOT EXISTS note_stats_compensation (
                                                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                                                        INDEX (note_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
