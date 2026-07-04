@@ -29,10 +29,28 @@ def _load_dotenv_file(path: Path) -> None:
 _load_dotenv_file(Path(__file__).resolve().parents[1] / ".env")
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
+
 @dataclass(slots=True)
 class Settings:
     login_api_base_url: str = os.getenv("AI_LOGIN_API_BASE_URL", "http://localhost:8080")
     jwt_secret: str = os.getenv("AI_JWT_SECRET", "")
+    auth_disabled: bool = _env_bool("AI_AUTH_DISABLED", False)
     model_provider: str = os.getenv("AI_MODEL_PROVIDER", "openai_compatible")
     model_base_url: str = os.getenv("AI_MODEL_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding/v3")
     model_api_key: str = os.getenv("AI_MODEL_API_KEY", "")
@@ -53,6 +71,13 @@ class Settings:
             if origin.strip()
         ]
     )
+    max_message_chars: int = field(default_factory=lambda: _env_int("AI_MAX_MESSAGE_CHARS", 4000))
+    max_draft_input_chars: int = field(default_factory=lambda: _env_int("AI_MAX_DRAFT_INPUT_CHARS", 4000))
+    max_keyword_text_chars: int = field(default_factory=lambda: _env_int("AI_MAX_KEYWORD_TEXT_CHARS", 4000))
+    max_site_search_keyword_chars: int = field(
+        default_factory=lambda: _env_int("AI_MAX_SITE_SEARCH_KEYWORD_CHARS", 200)
+    )
+    max_context_preview_chars: int = field(default_factory=lambda: _env_int("AI_MAX_CONTEXT_PREVIEW_CHARS", 2000))
 
 
 settings = Settings()

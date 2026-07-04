@@ -18,18 +18,12 @@ public class FlywayConfig {
 
     @Bean(initMethod = "migrate")
     public Flyway flyway(DataSource dataSource) {
-        Flyway flyway = Flyway.configure()
+        return Flyway.configure()
                 .dataSource(dataSource)
                 .schemas(schemas)
                 .locations(locations)
-                .baselineOnMigrate(true)  // ✅ 对已有非空 schema 自动创建基线
-                .baselineVersion("1")     // 可以自定义 baseline 版本
+                .baselineOnMigrate(true)
+                .baselineVersion("1")
                 .load();
-
-        // 如果需要，可以先检查是否 baseline
-        flyway.baseline();
-
-        return flyway;
     }
 }
-

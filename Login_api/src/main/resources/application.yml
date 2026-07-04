@@ -74,16 +74,20 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+    validate-migration-naming: true
     schemas: ebook_platform
 
 jwt:
   secret: Fs9K2nKqP9zqD82jsk29Ahd92nDkQ8snf7P2jS8KfD8=
   expiration: 3600
 
+# MinIO 对象存储（文件上传）
+# 默认账户 minioadmin / minioadmin，需与 Starting/启动脚本.bat 启动的 MinIO 一致。
+# Web 控制台: http://127.0.0.1:9005  |  API: http://localhost:9000
 minio:
   endpoint: http://localhost:9000
-  access-key: name
-  secret-key: password
+  access-key: minioadmin
+  secret-key: minioadmin
   bucket: notesharing
 
 mybatis:

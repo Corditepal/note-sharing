@@ -7,3 +7,17 @@ ai_bff/.env
 ai_bff/.env.local
 ai_bff/.env.*.local
 ai_bff/*.log
+
+# Local secrets
+API_KEY.txt
+.env
+.env.local
+*.key
+*.secret
+
+# Local runtime artifacts
+.runtime/
+
+# Local SDD workspace artifacts
+.cursor/
+specs/

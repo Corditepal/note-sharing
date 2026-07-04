@@ -5,7 +5,9 @@ import com.project.login.model.dto.search.NoteSearchDTO;
 import com.project.login.model.request.search.NoteSearchRequest;
 import com.project.login.model.response.StandardResponse;
 import com.project.login.model.vo.NoteSearchVO;
+import com.project.login.model.vo.NoteShowVO;
 import com.project.login.model.vo.qa.QuestionVO;
+import com.project.login.service.noting.NoteService;
 import com.project.login.service.search.SearchQAService;
 import com.project.login.service.search.SearchService;
 import com.project.login.service.flink.userbahavior.UserSearchService;
@@ -17,6 +19,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "Search", description = "Search notes and questions using Elasticsearch")
 @RestController
@@ -26,6 +29,7 @@ public class SearchController {
 
     private final SearchService searchService;
     private final SearchQAService searchQAService;
+    private final NoteService noteService;
 
     @Qualifier("searchConvert")
     private final SearchConvert convert;
@@ -65,6 +69,28 @@ public class SearchController {
         }
 
         return StandardResponse.success(results);
+    }
+
+    @Operation(summary = "List published notes for site catalog (AI broad-list retrieval)")
+    @GetMapping("/notes/catalog")
+    public StandardResponse<List<NoteSearchVO>> catalogNotes(
+            @RequestParam(value = "limit", defaultValue = "5") int limit
+    ) {
+        int capped = Math.min(Math.max(limit, 1), 10);
+        List<NoteSearchVO> results = noteService.getAllNotes().stream()
+                .limit(capped)
+                .map(this::toCatalogSearchVo)
+                .collect(Collectors.toList());
+        return StandardResponse.success(results);
+    }
+
+    private NoteSearchVO toCatalogSearchVo(NoteShowVO show) {
+        NoteSearchVO vo = new NoteSearchVO();
+        vo.setNoteId(show.getId());
+        vo.setTitle(show.getTitle());
+        vo.setAuthorName(show.getAuthorName());
+        vo.setUpdatedAt(show.getUpdatedAt());
+        return vo;
     }
 }
 

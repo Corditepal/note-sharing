@@ -193,7 +193,8 @@ const fetchFavorites = async () => {
     }
   } catch (err) {
     console.error('获取收藏列表失败:', err)
-    error.value = '获取收藏列表失败，请稍后重试'
+    const backendMsg = err.response?.data?.message || err.response?.data?.error
+    error.value = backendMsg || err.message || '获取收藏列表失败，请稍后重试'
     // 如果 API 不存在，使用空数组（开发阶段）
     if (activeTab.value === 'notes') {
       favoriteNotes.value = []

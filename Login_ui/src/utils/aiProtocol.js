@@ -144,3 +144,134 @@ export function buildRouteTarget(target) {
     query: target.query && typeof target.query === 'object' ? target.query : {}
   }
 }
+
+function parseNoteId(value) {
+  if (value === undefined || value === null || value === '') {
+    return null
+  }
+
+  const noteId = Number(value)
+  if (!Number.isInteger(noteId) || noteId <= 0) {
+    return null
+  }
+
+  return noteId
+}
+
+function parseQuestionId(value) {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  const questionId = String(value).trim()
+  return questionId || null
+}
+
+export function isRouteableCitation(citation) {
+  if (!citation || typeof citation !== 'object') {
+    return false
+  }
+
+  const title = String(citation.title || '').trim()
+  const route = citation.route
+  if (!title || !route || typeof route !== 'object') {
+    return false
+  }
+
+  if (citation.type === 'note') {
+    const noteId = parseNoteId(citation.noteId ?? route.noteId)
+    return route.tab === 'note-detail' && noteId !== null
+  }
+
+  if (citation.type === 'question') {
+    const questionId = parseQuestionId(citation.questionId ?? route.questionId)
+    return route.tab === 'qa-detail' && questionId !== null
+  }
+
+  return false
+}
+
+export function buildCitationNavigationTarget(citation) {
+  if (!isRouteableCitation(citation)) {
+    return null
+  }
+
+  const title = String(citation.title || '').trim()
+
+  if (citation.type === 'note') {
+    const noteId = parseNoteId(citation.noteId ?? citation.route?.noteId)
+    if (noteId === null) {
+      return null
+    }
+
+    return {
+      type: 'note',
+      noteId,
+      title
+    }
+  }
+
+  const questionId = parseQuestionId(citation.questionId ?? citation.route?.questionId)
+  if (questionId === null) {
+    return null
+  }
+
+  return {
+    type: 'question',
+    questionId,
+    title
+  }
+}
+
+const FOLIO_LINK_HREF_RE = /^folio:\/\/(note|question)\/([^/?#]+)\/?$/i
+
+export function parseFolioLinkHref(href) {
+  const match = String(href || '').trim().match(FOLIO_LINK_HREF_RE)
+  if (!match) {
+    return null
+  }
+
+  const type = match[1].toLowerCase()
+  const idPart = decodeURIComponent(match[2])
+
+  if (type === 'note') {
+    const noteId = parseNoteId(idPart)
+    return noteId !== null ? { type: 'note', noteId } : null
+  }
+
+  const questionId = parseQuestionId(idPart)
+  return questionId ? { type: 'question', questionId } : null
+}
+
+export function findCitationForFolioLink(href, citations = []) {
+  const parsed = parseFolioLinkHref(href)
+  if (!parsed) {
+    return null
+  }
+
+  for (const citation of citations) {
+    if (!citation || typeof citation !== 'object') {
+      continue
+    }
+
+    if (parsed.type === 'note' && citation.type === 'note') {
+      const noteId = parseNoteId(citation.noteId ?? citation.route?.noteId)
+      if (noteId === parsed.noteId) {
+        return citation
+      }
+    }
+
+    if (parsed.type === 'question' && citation.type === 'question') {
+      const questionId = parseQuestionId(citation.questionId ?? citation.route?.questionId)
+      if (questionId === parsed.questionId) {
+        return citation
+      }
+    }
+  }
+
+  return null
+}
+
+export function buildInlineLinkNavigationTarget(href, citations = []) {
+  return buildCitationNavigationTarget(findCitationForFolioLink(href, citations))
+}
